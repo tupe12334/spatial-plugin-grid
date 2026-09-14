@@ -139,3 +139,62 @@ pnpm test:e2e
 `test:pack` creates a real tarball, installs it into an isolated temporary consumer for React 18 and 19, compiles its TSX, imports the ESM package in Node, and bundles the CSS export through Vite. It deletes the temporary consumer afterward. Browser tests use isolated headless Chromium, cover every allowed size, both animation directions and intermediate geometry, composer anchoring, reduced-motion final geometry, input equivalents, focus protection, themes, narrow/RTL, and observer cleanup. Screenshots and traces are saved under `test-results`; CI uploads browser evidence. CI executes all noninteractive checks, including packed consumers and browser tests. No paid services are required.
 
 See [captured browser evidence](docs/evidence/README.md) for the reference workspace, expanded stage, and narrow RTL layout.
+
+## npm publishing
+
+Publishing automation is prepared; this does not mean the package is already on npm. The license remains `UNLICENSED`. Releases use Node 24, npm 11.6.1, and pnpm 9.15.9 on GitHub-hosted runners. See [npm trusted publishing requirements and configuration](https://docs.npmjs.com/trusted-publishers/).
+
+### Owner bootstrap (one time, after merge)
+
+OIDC cannot bootstrap this nonexistent package: its npm settings must exist before a trusted publisher can be configured. An owner with access to the `@tupe12334` scope must perform the initial publication from a clean, reviewed `main` checkout. These are manual owner actions, not actions performed by this PR:
+
+1. Install Node 24 and pnpm 9.15.9, then run the full validation sequence below on the exact initial version (currently `0.1.0`).
+2. Inspect `npm publish --dry-run --access public --registry https://registry.npmjs.org/ --tag latest`. Authenticate locally with `npm login --registry https://registry.npmjs.org/`, then run `npm publish --access public --registry https://registry.npmjs.org/ --tag latest`, completing npm's authentication/2FA prompts. This local bootstrap does not request GitHub provenance. If bootstrapping a prerelease version instead, use `next` for both commands.
+3. In npm's settings for `@tupe12334/spatial-plugin-grid`, add a **GitHub Actions** trusted publisher with these exact fields:
+
+   | Field | Value |
+   | --- | --- |
+   | Organization or user | `tupe12334` |
+   | Repository | `spatial-plugin-grid` |
+   | Workflow filename | `publish.yml` (no directory prefix) |
+   | Environment name | Leave empty (the workflow uses no environment) |
+   | Allowed actions, if shown | Allow direct `npm publish` |
+
+   The package's `repository.url` must continue to match this GitHub repository. No npm token or GitHub secret is used by the workflow.
+4. The initial version is now consumed: do not publish a GitHub release for that same version expecting CI to republish it. Use a new version for the first automated release.
+
+### Validate without publishing
+
+After merge, run the **Publish npm** workflow using **Run workflow → main**, or:
+
+```sh
+gh workflow run publish.yml --ref main
+```
+
+Manual dispatch has no publish input and cannot enter the publish job. It synthesizes `v<package.version>`, validates main ancestry, runs the complete reusable CI suite, builds, and executes `npm publish --dry-run` with the selected `latest`/`next` tag. It creates no Git tag, GitHub release, or npm publication and has no OIDC permission. A successful dry run proves validation and packaging, not npm authentication or trusted publisher configuration.
+
+Full local validation (same scripts as CI):
+
+```sh
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:release
+pnpm build
+pnpm test:pack
+pnpm storybook --ci --smoke-test --port 16067
+pnpm build-storybook
+pnpm exec playwright install --with-deps chromium
+pnpm test:e2e
+npm publish --dry-run --access public --provenance --registry https://registry.npmjs.org/ --tag latest
+```
+
+For a prerelease dry run, use `--tag next`.
+
+### Normal releases
+
+1. Change `package.json` to a new, unused strict SemVer version and merge the reviewed PR into `main` after CI passes. Build metadata (`+...`) is deliberately rejected because npm normalizes it away.
+2. Create a tag exactly `v<package.version>` on that reviewed main commit and publish a GitHub release for the tag. For a version such as `0.2.0-rc.1`, mark the GitHub release as a prerelease; stable versions such as `0.2.0` must not have that flag.
+3. The published-release event checks the exact tag/version, flag, and commit ancestry on `origin/main`, then runs all existing CI validations. Only after success can the publish job request OIDC and publish publicly with provenance to `https://registry.npmjs.org/`. Stable releases use `latest`; prereleases use `next`. Drafts and tag pushes alone do not publish. The workflow serializes runs and does not cancel an active publication.
+4. Check the workflow result and npm version/dist-tag. Versions cannot be overwritten; if a publication succeeded, use a new version for subsequent changes. The workflow never automatically bumps, tags, or creates releases. Publish stable versions in ascending order: publishing an older stable version would move `latest` backward.

@@ -1,0 +1,86 @@
+name: Publish npm
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publishing
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      dist-tag: ${{ steps.release.outputs.dist-tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: git fetch origin main:refs/remotes/origin/main
+      - id: release
+        run: node scripts/release-guard.mjs
+
+  validate:
+    needs: guard
+    uses: ./.github/workflows/ci.yml
+
+  dry-run:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [guard, validate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: npm install --global npm@11.6.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: npm publish --dry-run --access public --provenance --registry https://registry.npmjs.org/ --tag "$DIST_TAG"
+        env:
+          DIST_TAG: ${{ needs.guard.outputs.dist-tag }}
+
+  publish:
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [guard, validate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: npm install --global npm@11.6.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: git fetch origin main:refs/remotes/origin/main
+      - run: node scripts/release-guard.mjs
+      - run: npm publish --access public --provenance --registry https://registry.npmjs.org/ --tag "$DIST_TAG"
+        env:
+          DIST_TAG: ${{ needs.guard.outputs.dist-tag }}
