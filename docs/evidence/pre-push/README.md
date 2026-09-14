@@ -42,11 +42,15 @@ HEAD in Git-format ref/SHA stdin, so the delivery response can report the exact
 validated commit and full gate result. It runs lint, typecheck, unit tests,
 build, React 18/19 packed-consumer smoke, one Storybook build, 14 functional
 E2E tests and 40 strict screenshot states, then checks HEAD and inputs again.
-No push of this branch is performed. GitHub Actions was not enabled or changed.
+Delivery uses a normal hook-protected Git push and a reviewed pull request.
+This change does not modify repository Actions permissions; they were initially
+disabled and enabled separately during concurrent Pages setup.
 
-Exact logs, diagnostic artifacts, baseline hashes and reproduction scripts are
-retained outside Git at `/tmp/spg-pre-push-proof/`, including `check-1.log`,
-`check-2.log`, `negative-mismatch.log`, `negative-missing.log`,
-`linux-ownership.log`, `guard-final.log`, `runner-unit.log` and `hook-full.log`.
+Raw local diagnostic logs and reproduction scripts are ephemeral and are not
+required to run the checks. Reproduce the positive comparison with two consecutive
+`pnpm test:visual` runs; run `pnpm test` for isolated push-guard regressions and
+`pnpm validate` for the full gate. For negative screenshot proof, back up a PNG,
+replace it with a different state (then remove it), require `pnpm test:visual`
+to fail in each case, and restore the exact original bytes before validation.
 Windows Docker Desktop and a native Linux host were not exercised end-to-end;
 the native Linux ownership probe covers the file-writer privilege boundary.

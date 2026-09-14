@@ -11,8 +11,8 @@ hooks, build inputs and committed baselines first, then runs lint, typecheck,
 unit tests, library build, React 18/19 packed-consumer smoke, one Storybook
 build, all 14 functional E2E tests and screenshot comparisons, then guards
 these inputs again even if a gate fails. Dirty unrelated documentation is allowed.
-No command calls the hook recursively. CI uses exactly this entry point;
-GitHub Actions remains disabled and no remote CI result is implied.
+No command calls the hook recursively. CI uses exactly this entry point; repository Actions permissions are managed
+separately. Local validation does not imply a remote CI result.
 
 Browser commands consume an already-built `storybook-static`:
 
