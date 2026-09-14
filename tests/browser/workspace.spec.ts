@@ -91,7 +91,7 @@ test("main stage has intermediate geometry in BOTH directions and pinned compose
   );
   await noOverflow(page);
 });
-test("keyboard, Escape, finger down/up and reduced-motion final geometry", async ({
+test("nonoverflowing transcript keyboard, Escape, touch and reduced-motion geometry", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -418,3 +418,117 @@ for (const following of [true, false]) {
     }
   });
 }
+
+for (const input of ["wheel", "ArrowDown", "PageDown", "Space", "End"]) {
+  test(`native ${input} collapses only when its scroll reaches bottom`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(
+      "/iframe.html?id=mainstage--resizing-transcript&viewMode=story",
+    );
+    const history = page.getByRole("log");
+    const toggle = page.locator(".spg-stage-header button");
+    await toggle.click();
+    await history.focus();
+    await history.press("Home");
+    await expect(history).toHaveJSProperty("scrollTop", 0);
+    await page.waitForTimeout(250);
+    const gesture = async () => {
+      if (input === "wheel") {
+        await history.hover();
+        await page.mouse.wheel(0, 100);
+      } else await history.press(input);
+    };
+    if (input !== "End") {
+      await gesture();
+      await expect
+        .poll(() => history.evaluate((el) => el.scrollTop))
+        .toBeGreaterThan(0);
+      await page.waitForTimeout(300);
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      // Completed downward input must not authorize a later programmatic scroll.
+      await history.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+      });
+      await page.waitForTimeout(100);
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await page.getByRole("button", { name: "Append message" }).click();
+      await page.setViewportSize({ width: 1280, height: 850 });
+      await page.waitForTimeout(100);
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    }
+    await history.evaluate((el) => {
+      el.scrollTop = el.scrollHeight - el.clientHeight - 30;
+    });
+    await page.waitForTimeout(100);
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    if (input === "wheel") {
+      await history.hover();
+      await page.mouse.wheel(0, 10);
+      await expect
+        .poll(() =>
+          history.evaluate(
+            (el) => el.scrollHeight - el.clientHeight - el.scrollTop,
+          ),
+        )
+        .toBeLessThan(30);
+      await page.waitForTimeout(250);
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    }
+    await gesture();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+}
+
+test("native touch scroll stays expanded midstream and collapses at bottom", async ({
+  page,
+  context,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(
+    "/iframe.html?id=mainstage--resizing-transcript&viewMode=story",
+  );
+  const history = page.getByRole("log");
+  const toggle = page.locator(".spg-stage-header button");
+  await toggle.click();
+  await history.evaluate((el) => {
+    el.scrollTop = 100;
+  });
+  await page.waitForTimeout(100);
+  const session = await context.newCDPSession(page);
+  const swipe = async () => {
+    const rect = (await history.boundingBox())!;
+    const x = rect.x + rect.width / 2;
+    const y = rect.y + rect.height * 0.8;
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y }],
+    });
+    for (let step = 1; step <= 6; step++) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x, y: y - step * 20 }],
+      });
+      await page.waitForTimeout(30);
+    }
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  };
+  await swipe();
+  await expect
+    .poll(() => history.evaluate((el) => el.scrollTop))
+    .toBeGreaterThan(100);
+  await page.waitForTimeout(350);
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await history.evaluate((el) => {
+    el.scrollTop = el.scrollHeight - el.clientHeight - 30;
+  });
+  await page.waitForTimeout(100);
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await swipe();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await session.detach();
+});
