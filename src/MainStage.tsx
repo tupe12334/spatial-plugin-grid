@@ -34,10 +34,13 @@ export function MainStage({
     touchY = useRef<number | null>(null);
   const previousEntries = useRef<string[] | null>(null);
   const nearBottom = useRef(true);
+  const resizeScrollTop = useRef<number | null>(null);
+  const historyHeight = useRef<number | null>(null);
   const id = useId();
   useLayoutEffect(() => {
     const element = history.current;
     if (!element || typeof transcript === "function") return;
+    historyHeight.current = element.clientHeight;
     const ids = transcript.map((entry) => entry.id);
     const previous = previousEntries.current;
     const appended =
@@ -75,7 +78,19 @@ export function MainStage({
         child.style.opacity = media.matches ? "1" : String(1 - depth * 0.72);
       }
     };
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver(() => {
+      historyHeight.current = element.clientHeight;
+      if (typeof transcript !== "function" && nearBottom.current) {
+        element.scrollTop = Math.max(
+          0,
+          element.scrollHeight - element.clientHeight,
+        );
+      }
+      // Resize can clamp scrollTop or queue a scroll event. Neither changes
+      // the reader's intent, even if the next animation frame has resized again.
+      resizeScrollTop.current = element.scrollTop;
+      update();
+    });
     observer.observe(element);
     element.addEventListener("scroll", update, { passive: true });
     media.addEventListener("change", update);
@@ -145,6 +160,12 @@ export function MainStage({
         tabIndex={0}
         onScroll={(event) => {
           const element = event.currentTarget;
+          if (
+            element.clientHeight !== historyHeight.current ||
+            element.scrollTop === resizeScrollTop.current
+          )
+            return;
+          resizeScrollTop.current = null;
           nearBottom.current =
             element.scrollHeight - element.clientHeight - element.scrollTop <=
             48;

@@ -158,6 +158,8 @@
   color: var(--spg-foreground);
 }
 .spg-history {
+  /* Depth transforms must not shift the browser's chosen scroll anchor. */
+  overflow-anchor: none;
   position: relative;
   flex: 1;
   min-height: 0;

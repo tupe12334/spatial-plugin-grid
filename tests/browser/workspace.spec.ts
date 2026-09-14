@@ -285,3 +285,62 @@ test("transcript starts latest, follows near-bottom appends and preserves older 
   await expect(history.locator(".spg-message")).toHaveCount(32);
   await expect(history).toHaveJSProperty("scrollTop", 100);
 });
+
+for (const following of [true, false]) {
+  test(`integrated stage resize preserves ${following ? "latest bottom" : "older reading"} throughout expand/collapse`, async ({
+    page,
+  }) => {
+    await page.goto(
+      "/iframe.html?id=mainstage--resizing-transcript&viewMode=story",
+    );
+    const history = page.getByRole("log");
+    await expect(history).toBeVisible();
+    await expect
+      .poll(() =>
+        history.evaluate(
+          (element) =>
+            element.scrollHeight - element.clientHeight - element.scrollTop,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    if (!following) {
+      await history.evaluate((element) => {
+        element.scrollTop = 100;
+      });
+      await page.waitForTimeout(50);
+    }
+    for (const expanded of [true, false, true, false]) {
+      const samples = await history.evaluate(async (element, expanded) => {
+        const toggle = element
+          .closest(".spg-stage-content")!
+          .querySelector<HTMLButtonElement>("header button")!;
+        toggle.click();
+        const samples: { gap: number; top: number; height: number }[] = [];
+        const start = performance.now();
+        while (performance.now() - start < 650) {
+          // Sample after layout and ResizeObserver delivery for this frame.
+          await new Promise((resolve) =>
+            requestAnimationFrame(() => setTimeout(resolve, 0)),
+          );
+          samples.push({
+            gap:
+              element.scrollHeight - element.clientHeight - element.scrollTop,
+            top: element.scrollTop,
+            height: element.clientHeight,
+          });
+        }
+        if (toggle.getAttribute("aria-expanded") !== String(expanded))
+          throw new Error("Toggle failed");
+        return samples;
+      }, expanded);
+      expect(
+        new Set(samples.map((sample) => sample.height)).size,
+      ).toBeGreaterThan(2);
+      for (const sample of samples) {
+        expect(
+          Math.abs(following ? sample.gap : sample.top - 100),
+        ).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+}

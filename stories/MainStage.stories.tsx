@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
-import { MainStage } from "../src";
+import { MainStage, SpatialPluginGrid } from "../src";
 import { StageExample } from "./Workspace.stories";
 export default {
   title: "MainStage",
@@ -68,4 +68,21 @@ export const AppendingTranscript: StoryObj<typeof MainStage> = {
       </div>
     );
   },
+};
+
+export const ResizingTranscript: StoryObj<typeof MainStage> = {
+  render: () => (
+    <SpatialPluginGrid
+      className="demo-theme"
+      plugins={[]}
+      mainStage={{
+        transcript: Array.from({ length: 30 }, (_, index) => ({
+          id: String(index),
+          author: "AGENT",
+          content: `Message ${index + 1}`,
+        })),
+        composer: <input aria-label="Message" />,
+      }}
+    />
+  ),
 };
