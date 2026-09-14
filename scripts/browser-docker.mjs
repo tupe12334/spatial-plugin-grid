@@ -32,6 +32,8 @@ for (const path of [
 ])
   mkdirSync(path, { recursive: true });
 // Copy only test inputs; never mount host node_modules into Linux. No host ports published.
+const uid = process.platform === "win32" ? 1000 : process.getuid();
+const gid = process.platform === "win32" ? 1000 : process.getgid();
 const command = `set -eu
 mkdir -p /work
 cp /source/package.json /source/pnpm-lock.yaml /source/playwright*.ts /work/
@@ -39,9 +41,18 @@ tar -C /source --exclude=tests/visual/baselines -cf - tests src storybook-static
 cd /work
 npm install --global pnpm@9.15.9
 pnpm install --frozen-lockfile --ignore-scripts
+# Change only private container files, never chown the host bind mounts.
+find /work -xdev \\( -path /work/tests/visual/baselines -o -path /work/test-results -o -path /work/playwright-report \\) -prune -o -exec chown ${uid}:${gid} {} +
+mkdir -p /tmp/browser-home
+chown ${uid}:${gid} /tmp/browser-home
+export HOME=/tmp/browser-home
 export SPG_CANONICAL_VISUAL=1
 export SPG_UPDATE_BASELINES=${mode === "update" ? "1" : "0"}
+exec setpriv --reuid=${uid} --regid=${gid} --clear-groups bash -ec '
+ echo "Browser writer UID:GID=$(id -u):$(id -g)"
+ test -w /work && test -w /work/test-results && test -w /work/playwright-report
 ${mode === "all" ? "pnpm exec playwright test --config playwright.config.ts\n" : ""}pnpm exec playwright test --config playwright.visual.config.ts
+'
 `;
 run([
   "run",

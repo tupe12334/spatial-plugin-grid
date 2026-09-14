@@ -57,13 +57,29 @@ export function verifyInventory(ids: string[], entries = states) {
     .sort();
   if (JSON.stringify([...ids].sort()) !== JSON.stringify(defaults))
     throw new Error("Story inventory differs from built Storybook index");
-  const names = entries.map((entry) => entry.name.toLowerCase());
-  if (new Set(names).size !== names.length)
-    throw new Error("Screenshot filename collision");
+  const paths = new Map<string, string>();
+  for (const entry of entries) {
+    const path = `tests/visual/baselines/${entry.name.toLowerCase()}.png`;
+    const previous = paths.get(path);
+    if (previous)
+      throw new Error(
+        `Screenshot filename collision at ${path}: ${previous} and ${entry.story}`,
+      );
+    paths.set(path, entry.story);
+  }
   if (
     entries.some(
       (entry) => !ids.includes(entry.story) || !/^[a-z0-9-]+$/.test(entry.name),
     )
   )
     throw new Error("Invalid screenshot registry");
+}
+
+export function verifyBaselines(files: string[]) {
+  const expected = states.map(({ name }) => `${name}.png`).sort();
+  const actual = files.filter((name) => name.endsWith(".png")).sort();
+  if (JSON.stringify(expected) !== JSON.stringify(actual))
+    throw new Error(
+      `Missing or extra PNG baselines; use explicit update and review/commit. Missing: ${expected.filter((name) => !actual.includes(name)).join(", ") || "none"}; extra: ${actual.filter((name) => !expected.includes(name)).join(", ") || "none"}`,
+    );
 }

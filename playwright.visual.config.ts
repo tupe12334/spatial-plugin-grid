@@ -45,7 +45,10 @@ export default defineConfig({
       args: [
         "--font-render-hinting=none",
         "--disable-gpu",
+        "--disable-software-rasterizer",
         "--disable-skia-runtime-opts",
+        "--disable-partial-raster",
+        "--num-raster-threads=1",
       ],
     },
   },

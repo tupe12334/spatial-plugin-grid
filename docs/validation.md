@@ -2,13 +2,15 @@
 
 Use Node 24, pnpm 9.15.9 and Docker with Linux containers. A fresh
 `pnpm install --frozen-lockfile` installs Husky through `prepare` and sets
-`core.hooksPath=.husky/_`. Every normal `git push` runs `pnpm validate`.
-Do not bypass hooks. Hermes owns the eventual push, PR and merge.
+`core.hooksPath=.husky/_`. Every normal `git push` forwards Git’s ref/SHA input to `scripts/pre-push.mjs`.
+Every non-deletion pushed SHA must equal checkout HEAD; check out other commits
+and push them separately. Do not bypass hooks. Manual `pnpm validate` needs no stdin.
 
-`pnpm validate` guards committed baselines first, then runs lint, typecheck,
+`pnpm validate` guards HEAD and clean source, configuration, tests, packages,
+hooks, build inputs and committed baselines first, then runs lint, typecheck,
 unit tests, library build, React 18/19 packed-consumer smoke, one Storybook
 build, all 14 functional E2E tests and screenshot comparisons, then guards
-baselines again even if a gate fails. Dirty unrelated documentation is allowed.
+these inputs again even if a gate fails. Dirty unrelated documentation is allowed.
 No command calls the hook recursively. CI uses exactly this entry point;
 GitHub Actions remains disabled and no remote CI result is implied.
 
@@ -27,11 +29,15 @@ platform manifest digest in `scripts/browser-docker.mjs`; the exact npm
 Playwright version and bundled Chromium match. Docker's pinned font packages
 supply the actual system-ui fonts, with no host fonts mounted. Viewport
 1280×900 (narrow/RTL 390×844), DPR 1, en-US, UTC, dark color scheme,
-font-render-hinting and software rasterization flags, one worker, zero retries and zero pixel tolerance are
-fixed. Reduced-motion cases explicitly emulate that preference. Only screenshot
+font-render-hinting, CPU rendering with GPU/software GPU fallback disabled,
+partial raster disabled, one raster thread, one worker, zero retries and zero
+pixel tolerance are fixed. Reduced-motion cases explicitly emulate that preference. Only screenshot
 tests disable animations/transitions/carets; functional motion assertions remain
-unchanged. Tests wait for the actual stage inside Storybook's root and font
-readiness. Playwright waits for stable consecutive screenshots.
+unchanged. Screenshot navigation loads the actual declared Storybook fonts before importing
+the entry module, then waits for the stage and five unchanged animation frames
+of transcript geometry, scroll positions, transforms and opacity. It does not
+replace fonts or rewrite product layout. Playwright also waits for stable
+consecutive screenshots.
 
 Check mode uses Playwright's `updateSnapshots: "none"` (never update), verifies
 the exact PNG inventory and mounts baselines read-only. There is no automatic
@@ -45,6 +51,11 @@ Additional states cover plugin size/group geometry and inert occlusion, expanded
 united and standalone stages, live theme, counter and transcript interactions.
 Narrow and RTL assert four columns before capture. Existing diagnostic PNGs
 under `test-results` are not baselines.
+
+Dependencies install as root inside the container, then `setpriv` drops to the
+host UID/GID for browser execution and artifact writes (1000:1000 on Windows
+with Docker Desktop file sharing). Only private container files are chowned;
+host paths are never made world-writable.
 
 Docker publishes no host ports; its fresh server uses internal 16166. Neither
 stale host 16066 nor user preview 16067 is touched. On ARM enable amd64

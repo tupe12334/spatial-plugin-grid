@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync, readdirSync } from "node:fs";
-import { states, verifyInventory } from "./registry";
+import { states, verifyInventory, verifyBaselines } from "./registry";
 import {
   geometry,
   pluginHomes,
@@ -13,26 +13,39 @@ verifyInventory(
     .filter((entry) => (entry as { type: string }).type === "story")
     .map((entry) => (entry as { id: string }).id),
 );
-if (process.env.SPG_UPDATE_BASELINES !== "1") {
-  const expected = states.map(({ name }) => `${name}.png`).sort();
-  const actual = readdirSync("tests/visual/baselines")
-    .filter((name) => name.endsWith(".png"))
-    .sort();
-  if (JSON.stringify(expected) !== JSON.stringify(actual))
-    throw new Error(
-      "Missing or extra PNG baselines; use explicit update and review/commit.",
-    );
-}
+if (process.env.SPG_UPDATE_BASELINES !== "1")
+  verifyBaselines(readdirSync("tests/visual/baselines"));
 for (const state of states)
   test(state.name, async ({ page }) => {
     if (["workspace--narrow", "workspace--rtl"].includes(state.story))
       await page.setViewportSize({ width: 390, height: 844 });
     if (state.story === "workspace--reduced-motion")
       await page.emulateMedia({ reducedMotion: "reduce" });
+    // Load the real Storybook font faces before its entry module can mount React.
+    // Waiting after mount can leave first-layout scroll measurements stale.
+    await page.route("**/iframe.html?*", async (route) => {
+      const response = await route.fetch();
+      const html = await response.text();
+      const entry =
+        /<script type="module" crossorigin src="([^"]+)"><\/script>/;
+      if (!entry.test(html))
+        throw new Error("Storybook module entry not found");
+      await route.fulfill({
+        response,
+        body: html.replace(
+          entry,
+          (_, src: string) => `<script type="module">
+          await Promise.all([...document.fonts].map(face => face.load()));
+          await document.fonts.ready;
+          await import(${JSON.stringify(src)});
+        </script>`,
+        ),
+      });
+    });
     await page.goto(`/iframe.html?id=${state.story}&viewMode=story`);
     await expect(
       page.locator("#storybook-root .spg-stage-content"),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => document.fonts.ready);
     // Snapshot-only stabilization. Functional motion tests use their separate config unchanged.
     await page.addStyleTag({
@@ -112,5 +125,34 @@ for (const state of states)
     }
     await page.mouse.move(0, 0);
     await page.evaluate(() => document.fonts.ready);
+    // ResizeObserver, React effects and scroll events must all finish before capture.
+    // Observe real geometry/styles; do not rewrite transcript transforms or scroll.
+    await page.evaluate(async () => {
+      let previous = "",
+        stable = 0;
+      for (let frame = 0; frame < 120; frame++) {
+        await new Promise(requestAnimationFrame);
+        const signature = JSON.stringify(
+          [
+            ...document.querySelectorAll<HTMLElement>(
+              ".spg-history, .spg-message, .spg-composer",
+            ),
+          ].map((element) => ({
+            rect: element.getBoundingClientRect().toJSON(),
+            scroll: [
+              element.scrollTop,
+              element.scrollHeight,
+              element.clientHeight,
+            ],
+            transform: getComputedStyle(element).transform,
+            opacity: getComputedStyle(element).opacity,
+          })),
+        );
+        stable = signature === previous ? stable + 1 : 0;
+        if (stable >= 5) return;
+        previous = signature;
+      }
+      throw new Error("Transcript layout/scroll did not settle");
+    });
     await expect(page).toHaveScreenshot(`${state.name}.png`);
   });
