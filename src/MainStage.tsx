@@ -1,4 +1,10 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useId,
+  useRef,
+  type ReactNode,
+} from "react";
 export interface StageRenderContext {
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
@@ -26,7 +32,26 @@ export function MainStage({
 }: MainStageProps) {
   const history = useRef<HTMLDivElement>(null),
     touchY = useRef<number | null>(null);
+  const previousEntries = useRef<string[] | null>(null);
+  const nearBottom = useRef(true);
   const id = useId();
+  useLayoutEffect(() => {
+    const element = history.current;
+    if (!element || typeof transcript === "function") return;
+    const ids = transcript.map((entry) => entry.id);
+    const previous = previousEntries.current;
+    const appended =
+      previous !== null &&
+      ids.length > previous.length &&
+      previous.every((id, index) => ids[index] === id);
+    if (previous === null || (appended && nearBottom.current)) {
+      element.scrollTop = Math.max(
+        0,
+        element.scrollHeight - element.clientHeight,
+      );
+    }
+    previousEntries.current = ids;
+  });
   useEffect(() => {
     const element = history.current;
     if (!element) return;
@@ -80,7 +105,7 @@ export function MainStage({
           y !== undefined &&
           Math.abs(y - touchY.current) > 12
         ) {
-          onExpandedChange(y < touchY.current);
+          onExpandedChange(y > touchY.current);
           touchY.current = y;
         }
       }}
@@ -118,6 +143,12 @@ export function MainStage({
         role="log"
         aria-label="Conversation transcript"
         tabIndex={0}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          nearBottom.current =
+            element.scrollHeight - element.clientHeight - element.scrollTop <=
+            48;
+        }}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (["ArrowUp", "PageUp", "Home"].includes(event.key))

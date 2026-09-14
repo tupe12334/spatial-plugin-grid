@@ -91,7 +91,7 @@ test("main stage has intermediate geometry in BOTH directions and pinned compose
   );
   await noOverflow(page);
 });
-test("keyboard, Escape, touch up/down and reduced-motion final geometry", async ({
+test("keyboard, Escape, finger down/up and reduced-motion final geometry", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -115,11 +115,11 @@ test("keyboard, Escape, touch up/down and reduced-motion final geometry", async 
     touches: [{ identifier: 1, clientY: 300 }],
   });
   await history.dispatchEvent("touchmove", {
-    touches: [{ identifier: 1, clientY: 200 }],
+    touches: [{ identifier: 1, clientY: 350 }],
   });
   close((await box(page, ".spg-stage")).height, base.height * 2 + 12);
   await history.dispatchEvent("touchmove", {
-    touches: [{ identifier: 1, clientY: 350 }],
+    touches: [{ identifier: 1, clientY: 200 }],
   });
   close((await box(page, ".spg-stage")).height, base.height);
   expect(
@@ -247,4 +247,41 @@ test("native wheel and toggle keyboard activation; covered controls leave tab or
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await page.mouse.wheel(0, 100);
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
+});
+
+test("transcript starts latest, follows near-bottom appends and preserves older reading", async ({
+  page,
+}) => {
+  await page.goto(
+    "/iframe.html?id=mainstage--appending-transcript&viewMode=story",
+  );
+  const history = page.getByRole("log");
+  const gap = () =>
+    history.evaluate(
+      (element) =>
+        element.scrollHeight - element.clientHeight - element.scrollTop,
+    );
+  await expect(history).toBeVisible();
+  expect(
+    await history.evaluate(
+      (element) => element.scrollHeight > element.clientHeight,
+    ),
+  ).toBe(true);
+  await expect.poll(gap).toBeLessThanOrEqual(1);
+  await history.evaluate((element) => {
+    element.scrollTop -= 30;
+    element.dispatchEvent(new Event("scroll"));
+  });
+  await page.getByRole("button", { name: "Append message" }).click();
+  await expect(history.locator(".spg-message")).toHaveCount(31);
+  await expect.poll(gap).toBeLessThanOrEqual(1);
+  await history.evaluate((element) => {
+    element.scrollTop = 100;
+    element.dispatchEvent(new Event("scroll"));
+  });
+  await page.getByRole("button", { name: "Rerender", exact: true }).click();
+  await expect(history).toHaveJSProperty("scrollTop", 100);
+  await page.getByRole("button", { name: "Append message" }).click();
+  await expect(history.locator(".spg-message")).toHaveCount(32);
+  await expect(history).toHaveJSProperty("scrollTop", 100);
 });

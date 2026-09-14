@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { SpatialPluginGrid, type PluginDefinition } from "../src";
+import { MainStage, SpatialPluginGrid, type PluginDefinition } from "../src";
 const disconnect = vi.fn(),
   remove = vi.fn();
 beforeEach(() => {
@@ -21,6 +21,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
@@ -82,7 +83,7 @@ it("cleans observers and media listeners on unmount", () => {
   expect(disconnect).toHaveBeenCalledTimes(1);
   expect(remove).toHaveBeenCalledTimes(1);
 });
-it("keyboard and directional touch change stage state", () => {
+it("keyboard, wheel and finger direction change stage state", () => {
   render(<SpatialPluginGrid plugins={plugins} />);
   const history = screen.getByRole("log");
   fireEvent.keyDown(history, { key: "ArrowUp" });
@@ -93,9 +94,76 @@ it("keyboard and directional touch change stage state", () => {
   ).toBe("true");
   fireEvent.keyDown(history, { key: "ArrowDown" });
   expect(screen.getByRole("button", { name: /Expand/ })).toBeTruthy();
-  fireEvent.touchStart(history, { touches: [{ clientY: 200 }] });
-  fireEvent.touchMove(history, { touches: [{ clientY: 100 }] });
+  fireEvent.wheel(history, { deltaY: -100 });
   expect(screen.getByRole("button", { name: /Collapse/ })).toBeTruthy();
-  fireEvent.touchMove(history, { touches: [{ clientY: 250 }] });
+  fireEvent.wheel(history, { deltaY: 100 });
   expect(screen.getByRole("button", { name: /Expand/ })).toBeTruthy();
+  fireEvent.touchStart(history, { touches: [{ clientY: 200 }] });
+  fireEvent.touchMove(history, { touches: [{ clientY: 210 }] });
+  expect(screen.getByRole("button", { name: /Expand/ })).toBeTruthy();
+  fireEvent.touchMove(history, { touches: [{ clientY: 250 }] });
+  expect(screen.getByRole("button", { name: /Collapse/ })).toBeTruthy();
+  fireEvent.touchMove(history, { touches: [{ clientY: 100 }] });
+  expect(screen.getByRole("button", { name: /Expand/ })).toBeTruthy();
+});
+
+// jsdom has no layout: supply overflow geometry before the mount effects run.
+function renderTranscript() {
+  let height = 1000;
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
+    () => height,
+  );
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+  const entries = Array.from({ length: 20 }, (_, index) => ({
+    id: String(index),
+    author: "Reader",
+    content: `Message ${index}`,
+  }));
+  const stage = (transcript = entries) => (
+    <MainStage
+      expanded={false}
+      onExpandedChange={() => {}}
+      transcript={transcript}
+    />
+  );
+  const view = render(stage());
+  return {
+    history: screen.getByRole("log"),
+    rerender: () => view.rerender(stage([...entries])),
+    append: () => {
+      height += 100;
+      entries.push({
+        id: String(entries.length),
+        author: "Reader",
+        content: "Appended message",
+      });
+      view.rerender(stage([...entries]));
+    },
+  };
+}
+it("initial populated transcript starts at the latest message", () => {
+  const { history } = renderTranscript();
+  expect(history.scrollTop).toBe(800);
+});
+it("appended messages follow a reader near the bottom", () => {
+  const { history, append, rerender } = renderTranscript();
+  history.scrollTop = 770;
+  fireEvent.scroll(history);
+  rerender();
+  expect(history.scrollTop).toBe(770);
+  append();
+  expect(history.scrollTop).toBe(900);
+});
+it("reading older messages retains position on rerender and append", () => {
+  const { history, append, rerender } = renderTranscript();
+  history.scrollTop = 120;
+  fireEvent.scroll(history);
+  rerender();
+  expect(history.scrollTop).toBe(120);
+  append();
+  expect(history.scrollTop).toBe(120);
+  history.scrollTop = 900;
+  fireEvent.scroll(history);
+  append();
+  expect(history.scrollTop).toBe(1000);
 });

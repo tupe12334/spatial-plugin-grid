@@ -38,3 +38,34 @@ export const HostRenderProps: StoryObj<typeof MainStage> = {
     );
   },
 };
+
+export const AppendingTranscript: StoryObj<typeof MainStage> = {
+  render: function AppendingStage() {
+    const [count, setCount] = useState(30);
+    const [revision, setRevision] = useState(0);
+    return (
+      <div className="spg-root demo-theme" style={{ height: 320 }}>
+        <MainStage
+          expanded={false}
+          onExpandedChange={() => {}}
+          title={`Conversation ${revision}`}
+          transcript={Array.from({ length: count }, (_, index) => ({
+            id: String(index),
+            author: "AGENT",
+            content: `Message ${index + 1}`,
+          }))}
+          composer={
+            <>
+              <button onClick={() => setCount(count + 1)}>
+                Append message
+              </button>
+              <button onClick={() => setRevision(revision + 1)}>
+                Rerender
+              </button>
+            </>
+          }
+        />
+      </div>
+    );
+  },
+};
