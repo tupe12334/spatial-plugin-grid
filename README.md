@@ -17,8 +17,8 @@ pnpm pack
 import {
   SpatialPluginGrid,
   type PluginDefinition,
-} from "@fideslayer/spatial-plugin-grid";
-import "@fideslayer/spatial-plugin-grid/styles.css";
+} from "@tupe12334/spatial-plugin-grid";
+import "@tupe12334/spatial-plugin-grid/styles.css";
 
 const plugins: PluginDefinition[] = [
   {
