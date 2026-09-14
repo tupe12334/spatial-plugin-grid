@@ -286,6 +286,43 @@ test("transcript starts latest, follows near-bottom appends and preserves older 
   await expect(history).toHaveJSProperty("scrollTop", 100);
 });
 
+for (const input of ["wheel", "Home"] as const) {
+  test(`first native ${input} leaves latest messages during expansion`, async ({
+    page,
+  }) => {
+    await page.goto(
+      "/iframe.html?id=mainstage--resizing-transcript&viewMode=story",
+    );
+    const history = page.getByRole("log");
+    const gap = () =>
+      history.evaluate(
+        (element) =>
+          element.scrollHeight - element.clientHeight - element.scrollTop,
+      );
+    await expect(history).toBeVisible();
+    await expect.poll(gap).toBeLessThanOrEqual(1);
+    if (input === "wheel") {
+      await history.hover();
+      await page.mouse.wheel(0, -150);
+    } else {
+      await history.focus();
+      await history.press(input);
+    }
+    await expect(page.locator(".spg-stage-header button")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await page.waitForTimeout(650);
+    expect(await gap()).toBeGreaterThan(48);
+    if (input === "Home")
+      await expect(history).toHaveJSProperty("scrollTop", 0);
+    const top = await history.evaluate((element) => element.scrollTop);
+    await page.getByRole("button", { name: "Append message" }).click();
+    await expect(history.locator(".spg-message")).toHaveCount(31);
+    await expect(history).toHaveJSProperty("scrollTop", top);
+  });
+}
+
 for (const following of [true, false]) {
   test(`integrated stage resize preserves ${following ? "latest bottom" : "older reading"} throughout expand/collapse`, async ({
     page,

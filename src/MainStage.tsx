@@ -34,6 +34,7 @@ export function MainStage({
     touchY = useRef<number | null>(null);
   const previousEntries = useRef<string[] | null>(null);
   const nearBottom = useRef(true);
+  const navigatingOlder = useRef(false);
   const resizeScrollTop = useRef<number | null>(null);
   const historyHeight = useRef<number | null>(null);
   const id = useId();
@@ -79,8 +80,18 @@ export function MainStage({
       }
     };
     const observer = new ResizeObserver(() => {
+      const heightChange =
+        element.clientHeight - (historyHeight.current ?? element.clientHeight);
       historyHeight.current = element.clientHeight;
-      if (typeof transcript !== "function" && nearBottom.current) {
+      if (
+        typeof transcript !== "function" &&
+        navigatingOlder.current &&
+        heightChange > 0
+      ) {
+        // Growing the viewport would otherwise consume the first upward
+        // scroll's gap. Keep that navigation while the stage expands.
+        element.scrollTop = Math.max(0, element.scrollTop - heightChange);
+      } else if (typeof transcript !== "function" && nearBottom.current) {
         element.scrollTop = Math.max(
           0,
           element.scrollHeight - element.clientHeight,
@@ -101,14 +112,20 @@ export function MainStage({
       media.removeEventListener("change", update);
     };
   }, [transcript]);
-  const context = { expanded, setExpanded: onExpandedChange };
+  const setExpanded = (value: boolean) => {
+    navigatingOlder.current = false;
+    onExpandedChange(value);
+  };
+  const context = { expanded, setExpanded };
   return (
     <section
       className="spg-stage-content"
       aria-label={title}
       onWheel={(event) => {
-        if (!event.ctrlKey && event.deltaY !== 0)
+        if (!event.ctrlKey && event.deltaY !== 0) {
+          if (event.deltaY > 0) navigatingOlder.current = false;
           onExpandedChange(event.deltaY < 0);
+        }
       }}
       onTouchStart={(event) => {
         touchY.current = event.touches[0]?.clientY ?? null;
@@ -120,6 +137,7 @@ export function MainStage({
           y !== undefined &&
           Math.abs(y - touchY.current) > 12
         ) {
+          if (y < touchY.current) navigatingOlder.current = false;
           onExpandedChange(y > touchY.current);
           touchY.current = y;
         }
@@ -132,7 +150,7 @@ export function MainStage({
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
-          onExpandedChange(false);
+          setExpanded(false);
           event.stopPropagation();
         }
       }}
@@ -146,7 +164,7 @@ export function MainStage({
           type="button"
           aria-expanded={expanded}
           aria-controls={id}
-          onClick={() => onExpandedChange(!expanded)}
+          onClick={() => setExpanded(!expanded)}
         >
           {expanded ? "Collapse ↙" : "Expand ↗"}
         </button>
@@ -158,6 +176,28 @@ export function MainStage({
         role="log"
         aria-label="Conversation transcript"
         tabIndex={0}
+        onWheel={(event) => {
+          // Record navigation intent before the bubbling expansion handler
+          // changes height; resize-generated scroll events cannot supply it.
+          if (!event.ctrlKey && event.deltaY < 0) {
+            navigatingOlder.current = true;
+            nearBottom.current = false;
+          }
+        }}
+        onTouchMove={(event) => {
+          const y = event.touches[0]?.clientY;
+          if (
+            touchY.current !== null &&
+            y !== undefined &&
+            y > touchY.current
+          ) {
+            navigatingOlder.current = true;
+            nearBottom.current = false;
+          }
+        }}
+        onPointerDown={() => {
+          navigatingOlder.current = false;
+        }}
         onScroll={(event) => {
           const element = event.currentTarget;
           if (
@@ -167,15 +207,19 @@ export function MainStage({
             return;
           resizeScrollTop.current = null;
           nearBottom.current =
+            !navigatingOlder.current &&
             element.scrollHeight - element.clientHeight - element.scrollTop <=
-            48;
+              48;
         }}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
-          if (["ArrowUp", "PageUp", "Home"].includes(event.key))
+          if (["ArrowUp", "PageUp", "Home"].includes(event.key)) {
+            navigatingOlder.current = true;
+            nearBottom.current = false;
             onExpandedChange(true);
+          }
           if (["ArrowDown", "PageDown", "End"].includes(event.key))
-            onExpandedChange(false);
+            setExpanded(false);
         }}
       >
         {typeof transcript === "function"

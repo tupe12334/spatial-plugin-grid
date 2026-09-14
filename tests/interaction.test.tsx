@@ -145,6 +145,26 @@ it("initial populated transcript starts at the latest message", () => {
   const { history } = renderTranscript();
   expect(history.scrollTop).toBe(800);
 });
+it.each(["wheel", "Home", "PageUp", "ArrowUp", "touch"])(
+  "%s intent relinquishes following before native scroll and resize events",
+  (input) => {
+    const { history, append } = renderTranscript();
+    if (input === "wheel") fireEvent.wheel(history, { deltaY: -150 });
+    else if (input === "touch") {
+      fireEvent.touchStart(history, { touches: [{ clientY: 200 }] });
+      fireEvent.touchMove(history, { touches: [{ clientY: 250 }] });
+    } else fireEvent.keyDown(history, { key: input });
+    // A queued scroll at the old bottom must not override explicit intent.
+    fireEvent.scroll(history);
+    append();
+    expect(history.scrollTop).toBe(800);
+    fireEvent.wheel(history, { deltaY: 150 });
+    history.scrollTop = 900;
+    fireEvent.scroll(history);
+    append();
+    expect(history.scrollTop).toBe(1000);
+  },
+);
 it("appended messages follow a reader near the bottom", () => {
   const { history, append, rerender } = renderTranscript();
   history.scrollTop = 770;
