@@ -382,20 +382,24 @@ for (const following of [true, false]) {
         const toggle = element
           .closest(".spg-stage-content")!
           .querySelector<HTMLButtonElement>("header button")!;
-        toggle.click();
         const samples: { gap: number; top: number; height: number }[] = [];
-        const start = performance.now();
-        while (performance.now() - start < 650) {
-          // Sample after layout and ResizeObserver delivery for this frame.
-          await new Promise((resolve) =>
-            requestAnimationFrame(() => setTimeout(resolve, 0)),
-          );
+        // Register after MainStage's observer and sample in resize delivery.
+        // A timer after rAF can read the next animation layout before its
+        // ResizeObserver has adjusted scrollTop.
+        const observer = new ResizeObserver(() => {
           samples.push({
             gap:
               element.scrollHeight - element.clientHeight - element.scrollTop,
             top: element.scrollTop,
             height: element.clientHeight,
           });
+        });
+        observer.observe(element);
+        try {
+          toggle.click();
+          await new Promise((resolve) => setTimeout(resolve, 650));
+        } finally {
+          observer.disconnect();
         }
         if (toggle.getAttribute("aria-expanded") !== String(expanded))
           throw new Error("Toggle failed");

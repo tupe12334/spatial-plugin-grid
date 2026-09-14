@@ -69,12 +69,41 @@ export function MainStage({
       expireDownward();
     }
   };
+  const consumeDownward = useRef<(element: HTMLDivElement) => void>(() => {});
+  useLayoutEffect(() => {
+    consumeDownward.current = (element) => {
+      const intent = downward.current;
+      if (intent) {
+        if (
+          element.clientHeight !== intent.height ||
+          element.scrollHeight !== intent.content ||
+          element.scrollTop < intent.top
+        )
+          clearDownward();
+        else if (element.scrollTop > intent.top) {
+          intent.top = element.scrollTop;
+          if (
+            element.scrollHeight - element.clientHeight - element.scrollTop <=
+            1
+          ) {
+            clearDownward();
+            onExpandedChange(false);
+          } else expireDownward();
+        }
+      }
+    };
+  });
   useEffect(() => {
     const element = history.current;
-    element?.addEventListener("scrollend", clearDownward);
+    const finishDownward = () => {
+      // Native scrollend can precede React's final onScroll delivery.
+      if (element) consumeDownward.current(element);
+      clearDownward();
+    };
+    element?.addEventListener("scrollend", finishDownward);
     return () => {
       clearDownward();
-      element?.removeEventListener("scrollend", clearDownward);
+      element?.removeEventListener("scrollend", finishDownward);
     };
   }, []);
   const contentObserver = useRef<MutationObserver | null>(null);
@@ -288,27 +317,7 @@ export function MainStage({
         }}
         onScroll={(event) => {
           const element = event.currentTarget;
-          const intent = downward.current;
-          if (intent) {
-            if (
-              element.clientHeight !== intent.height ||
-              element.scrollHeight !== intent.content ||
-              element.scrollTop < intent.top
-            )
-              clearDownward();
-            else if (element.scrollTop > intent.top) {
-              intent.top = element.scrollTop;
-              if (
-                element.scrollHeight -
-                  element.clientHeight -
-                  element.scrollTop <=
-                1
-              ) {
-                clearDownward();
-                onExpandedChange(false);
-              } else expireDownward();
-            }
-          }
+          consumeDownward.current(element);
           if (
             element.clientHeight !== historyHeight.current ||
             element.scrollTop === resizeScrollTop.current
