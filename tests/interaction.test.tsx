@@ -253,6 +253,90 @@ it.each(["wheel", "ArrowDown", "PageDown", "End", " ", "touch"])(
     expect(onExpandedChange).toHaveBeenCalledExactlyOnceWith(false);
   },
 );
+it("End collapses when native scrollend precedes React's final bottom scroll", () => {
+  const { history, onExpandedChange } = renderTranscript();
+  history.scrollTop = 770;
+  fireEvent.keyDown(history, { key: "End" });
+  history.scrollTop = 797;
+  fireEvent.scroll(history);
+  expect(onExpandedChange).not.toHaveBeenCalled();
+  history.scrollTop = 800;
+  fireEvent(history, new Event("scrollend"));
+  fireEvent.scroll(history);
+  expect(onExpandedChange).toHaveBeenCalledExactlyOnceWith(false);
+});
+
+it.each([
+  "no intent",
+  "expired",
+  "height changed",
+  "content height changed",
+  "upward progress",
+  "pointer",
+  "touch cancel",
+  "append",
+  "replace",
+  "collapse",
+  "finished without progress",
+  "finished with progress",
+])(
+  "scrollend rejects %s before a later programmatic bottom scroll",
+  (reason) => {
+    vi.useFakeTimers();
+    try {
+      const view = renderTranscript();
+      const { history, onExpandedChange } = view;
+      history.scrollTop = 770;
+      if (reason !== "no intent") fireEvent.keyDown(history, { key: "End" });
+      history.scrollTop = 797;
+      fireEvent.scroll(history);
+      if (reason === "expired") vi.advanceTimersByTime(180);
+      if (reason === "height changed")
+        vi.spyOn(history, "clientHeight", "get").mockReturnValue(210);
+      if (reason === "content height changed")
+        vi.spyOn(history, "scrollHeight", "get").mockReturnValue(1010);
+      if (reason === "pointer") fireEvent.pointerDown(history);
+      if (reason === "touch cancel") fireEvent.touchCancel(history);
+      if (reason === "append" || reason === "replace" || reason === "collapse")
+        view[reason]();
+      if (reason === "finished with progress") history.scrollTop = 798;
+      if (reason.startsWith("finished"))
+        fireEvent(history, new Event("scrollend"));
+      history.scrollTop =
+        reason === "upward progress"
+          ? 790
+          : history.scrollHeight - history.clientHeight;
+      fireEvent(history, new Event("scrollend"));
+      expect(onExpandedChange).not.toHaveBeenCalled();
+      history.scrollTop = history.scrollHeight - history.clientHeight;
+      fireEvent.scroll(history);
+      fireEvent(history, new Event("scrollend"));
+      expect(onExpandedChange).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);
+
+it("scrollend honors the refreshed 180ms intent deadline", () => {
+  vi.useFakeTimers();
+  try {
+    const { history, onExpandedChange } = renderTranscript();
+    history.scrollTop = 770;
+    fireEvent.keyDown(history, { key: "End" });
+    vi.advanceTimersByTime(179);
+    history.scrollTop = 797;
+    fireEvent.scroll(history);
+    vi.advanceTimersByTime(179);
+    history.scrollTop = 800;
+    fireEvent(history, new Event("scrollend"));
+    fireEvent.scroll(history);
+    expect(onExpandedChange).toHaveBeenCalledExactlyOnceWith(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it.each(["scrollend", "timeout", "append", "replace", "collapse"])(
   "%s clears earlier downward intent before a programmatic bottom scroll",
   (completion) => {
