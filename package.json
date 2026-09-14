@@ -30,7 +30,13 @@
     "build-storybook": "storybook build",
     "test:e2e": "playwright test",
     "test:pack": "node scripts/pack-consumer.mjs",
-    "test:release": "node --test scripts/release-guard.test.mjs"
+    "test:release": "node --test scripts/release-guard.test.mjs",
+    "prepare": "husky",
+    "validate": "node scripts/validate.mjs",
+    "test:visual": "node scripts/browser-docker.mjs visual",
+    "test:visual:update": "node scripts/browser-docker.mjs update",
+    "test:browsers": "node scripts/browser-docker.mjs all",
+    "test:baseline-guard": "node scripts/baseline-guard.mjs"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
@@ -38,7 +44,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
-    "@playwright/test": "^1.55.0",
+    "@playwright/test": "1.63.0",
     "@storybook/react": "10.5.4",
     "@storybook/react-vite": "10.5.4",
     "@testing-library/react": "^16.0.0",
@@ -48,6 +54,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "eslint": "^9.0.0",
+    "husky": "9.1.7",
     "jsdom": "^26.0.0",
     "prettier": "3.6.2",
     "react": "18.3.1",

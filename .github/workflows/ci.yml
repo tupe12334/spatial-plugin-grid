@@ -20,16 +20,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
       - run: pnpm test:release
-      - run: pnpm build
-      - run: pnpm test:pack
-      - run: pnpm storybook --ci --smoke-test --port 16067
-      - run: pnpm build-storybook
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - run: pnpm validate
       - uses: actions/upload-artifact@v4
         if: always()
         with:
