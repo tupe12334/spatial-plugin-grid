@@ -53,14 +53,14 @@ export function MainStage({
     // Native smooth keyboard scrolling refreshes this deadline.
     intentTimer.current = setTimeout(clearDownward, 180);
   };
-  const down = () => {
+  const down = (target: EventTarget) => {
     const element = history.current;
     clearDownward();
     navigatingOlder.current = false;
     if (!element) return;
     if (element.scrollHeight - element.clientHeight - element.scrollTop <= 1) {
       onExpandedChange(false);
-    } else {
+    } else if (target instanceof Node && element.contains(target)) {
       downward.current = {
         top: element.scrollTop,
         height: element.clientHeight,
@@ -77,10 +77,12 @@ export function MainStage({
       element?.removeEventListener("scrollend", clearDownward);
     };
   }, []);
+  useLayoutEffect(() => {
+    clearDownward();
+  }, [transcript, expanded]);
   const id = useId();
   useLayoutEffect(() => {
     const element = history.current;
-    clearDownward();
     if (!element || typeof transcript === "function") return;
     historyHeight.current = element.clientHeight;
     const ids = transcript.map((entry) => entry.id);
@@ -166,7 +168,7 @@ export function MainStage({
       aria-label={title}
       onWheel={(event) => {
         if (!event.ctrlKey && event.deltaY !== 0) {
-          if (event.deltaY > 0) down();
+          if (event.deltaY > 0) down(event.target);
           else {
             clearDownward();
             onExpandedChange(true);
@@ -183,7 +185,7 @@ export function MainStage({
           y !== undefined &&
           Math.abs(y - touchY.current) > 12
         ) {
-          if (y < touchY.current) down();
+          if (y < touchY.current) down(event.target);
           else {
             clearDownward();
             onExpandedChange(true);
@@ -298,7 +300,7 @@ export function MainStage({
             ["ArrowDown", "PageDown", "End"].includes(event.key) ||
             (event.key === " " && !event.shiftKey)
           )
-            down();
+            down(event.target);
         }}
       >
         {typeof transcript === "function"
