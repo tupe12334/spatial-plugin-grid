@@ -37,6 +37,78 @@ export function MainStage({
   const navigatingOlder = useRef(false);
   const resizeScrollTop = useRef<number | null>(null);
   const historyHeight = useRef<number | null>(null);
+  const downward = useRef<{
+    top: number;
+    height: number;
+    content: number;
+  } | null>(null);
+  const intentTimer = useRef<ReturnType<typeof setTimeout>>();
+  const clearDownward = () => {
+    downward.current = null;
+    clearTimeout(intentTimer.current);
+  };
+  const expireDownward = () => {
+    clearTimeout(intentTimer.current);
+    // Bound inputs that never scroll and support browsers without scrollend.
+    // Native smooth keyboard scrolling refreshes this deadline.
+    intentTimer.current = setTimeout(clearDownward, 180);
+  };
+  const down = (target: EventTarget) => {
+    const element = history.current;
+    clearDownward();
+    navigatingOlder.current = false;
+    if (!element) return;
+    if (element.scrollHeight - element.clientHeight - element.scrollTop <= 1) {
+      onExpandedChange(false);
+    } else if (target instanceof Node && element.contains(target)) {
+      downward.current = {
+        top: element.scrollTop,
+        height: element.clientHeight,
+        content: element.scrollHeight,
+      };
+      expireDownward();
+    }
+  };
+  useEffect(() => {
+    const element = history.current;
+    element?.addEventListener("scrollend", clearDownward);
+    return () => {
+      clearDownward();
+      element?.removeEventListener("scrollend", clearDownward);
+    };
+  }, []);
+  const contentObserver = useRef<MutationObserver | null>(null);
+  const refreshPresentation = useRef<(() => void) | null>(null);
+  const contentChanged = useRef(false);
+  useLayoutEffect(() => {
+    const element = history.current;
+    if (!element) return;
+    const observer = new MutationObserver(() => {
+      clearDownward();
+      refreshPresentation.current?.();
+    });
+    contentObserver.current = observer;
+    // Observe rendered content, not prop identity or our scroll-driven styles.
+    observer.observe(element, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+    return () => {
+      observer.disconnect();
+      contentObserver.current = null;
+    };
+  }, []);
+  useLayoutEffect(() => {
+    // Invalidate synchronously before append-following can queue a scroll.
+    if (contentObserver.current?.takeRecords().length) {
+      clearDownward();
+      contentChanged.current = true;
+    }
+  });
+  useLayoutEffect(() => {
+    clearDownward();
+  }, [expanded]);
   const id = useId();
   useLayoutEffect(() => {
     const element = history.current;
@@ -56,6 +128,14 @@ export function MainStage({
     }
     previousEntries.current = ids;
   });
+  useLayoutEffect(() => {
+    if (contentChanged.current) {
+      // Apply depth after append-following has settled the scroll position.
+      refreshPresentation.current?.();
+      contentChanged.current = false;
+    }
+  });
+  const customTranscript = typeof transcript === "function";
   useEffect(() => {
     const element = history.current;
     if (!element) return;
@@ -79,19 +159,17 @@ export function MainStage({
         child.style.opacity = media.matches ? "1" : String(1 - depth * 0.72);
       }
     };
+    refreshPresentation.current = update;
     const observer = new ResizeObserver(() => {
+      clearDownward();
       const heightChange =
         element.clientHeight - (historyHeight.current ?? element.clientHeight);
       historyHeight.current = element.clientHeight;
-      if (
-        typeof transcript !== "function" &&
-        navigatingOlder.current &&
-        heightChange > 0
-      ) {
+      if (!customTranscript && navigatingOlder.current && heightChange > 0) {
         // Growing the viewport would otherwise consume the first upward
         // scroll's gap. Keep that navigation while the stage expands.
         element.scrollTop = Math.max(0, element.scrollTop - heightChange);
-      } else if (typeof transcript !== "function" && nearBottom.current) {
+      } else if (!customTranscript && nearBottom.current) {
         element.scrollTop = Math.max(
           0,
           element.scrollHeight - element.clientHeight,
@@ -107,12 +185,14 @@ export function MainStage({
     media.addEventListener("change", update);
     update();
     return () => {
+      refreshPresentation.current = null;
       observer.disconnect();
       element.removeEventListener("scroll", update);
       media.removeEventListener("change", update);
     };
-  }, [transcript]);
+  }, [customTranscript]);
   const setExpanded = (value: boolean) => {
+    clearDownward();
     navigatingOlder.current = false;
     onExpandedChange(value);
   };
@@ -123,8 +203,11 @@ export function MainStage({
       aria-label={title}
       onWheel={(event) => {
         if (!event.ctrlKey && event.deltaY !== 0) {
-          if (event.deltaY > 0) navigatingOlder.current = false;
-          onExpandedChange(event.deltaY < 0);
+          if (event.deltaY > 0) down(event.target);
+          else {
+            clearDownward();
+            onExpandedChange(true);
+          }
         }
       }}
       onTouchStart={(event) => {
@@ -137,8 +220,11 @@ export function MainStage({
           y !== undefined &&
           Math.abs(y - touchY.current) > 12
         ) {
-          if (y < touchY.current) navigatingOlder.current = false;
-          onExpandedChange(y > touchY.current);
+          if (y < touchY.current) down(event.target);
+          else {
+            clearDownward();
+            onExpandedChange(true);
+          }
           touchY.current = y;
         }
       }}
@@ -146,6 +232,7 @@ export function MainStage({
         touchY.current = null;
       }}
       onTouchCancel={() => {
+        clearDownward();
         touchY.current = null;
       }}
       onKeyDown={(event) => {
@@ -196,10 +283,32 @@ export function MainStage({
           }
         }}
         onPointerDown={() => {
+          clearDownward();
           navigatingOlder.current = false;
         }}
         onScroll={(event) => {
           const element = event.currentTarget;
+          const intent = downward.current;
+          if (intent) {
+            if (
+              element.clientHeight !== intent.height ||
+              element.scrollHeight !== intent.content ||
+              element.scrollTop < intent.top
+            )
+              clearDownward();
+            else if (element.scrollTop > intent.top) {
+              intent.top = element.scrollTop;
+              if (
+                element.scrollHeight -
+                  element.clientHeight -
+                  element.scrollTop <=
+                1
+              ) {
+                clearDownward();
+                onExpandedChange(false);
+              } else expireDownward();
+            }
+          }
           if (
             element.clientHeight !== historyHeight.current ||
             element.scrollTop === resizeScrollTop.current
@@ -217,6 +326,7 @@ export function MainStage({
             ["ArrowUp", "PageUp", "Home"].includes(event.key) ||
             (event.key === " " && event.shiftKey)
           ) {
+            clearDownward();
             navigatingOlder.current = true;
             nearBottom.current = false;
             onExpandedChange(true);
@@ -225,7 +335,7 @@ export function MainStage({
             ["ArrowDown", "PageDown", "End"].includes(event.key) ||
             (event.key === " " && !event.shiftKey)
           )
-            setExpanded(false);
+            down(event.target);
         }}
       >
         {typeof transcript === "function"
