@@ -120,9 +120,10 @@ function renderTranscript() {
     content: `Message ${index}`,
   }));
   const onExpandedChange = vi.fn();
-  const stage = (transcript = entries) => (
+  const stage = (transcript = entries, title = "Main stage", expanded = true) => (
     <MainStage
-      expanded={true}
+      expanded={expanded}
+      title={title}
       onExpandedChange={onExpandedChange}
       transcript={transcript}
     />
@@ -131,7 +132,13 @@ function renderTranscript() {
   return {
     onExpandedChange,
     history: screen.getByRole("log"),
-    rerender: () => view.rerender(stage([...entries])),
+    rerender: () => view.rerender(stage(entries)),
+    retitle: () => view.rerender(stage(entries, "Updated title")),
+    collapse: () => view.rerender(stage(entries, undefined, false)),
+    replace: () =>
+      view.rerender(
+        stage(entries.map((entry) => ({ ...entry, content: "Updated" }))),
+      ),
     append: () => {
       height += 100;
       entries.push({
@@ -216,12 +223,12 @@ it.each(["wheel", "ArrowDown", "PageDown", "End", " ", "touch"])(
     expect(onExpandedChange).toHaveBeenCalledExactlyOnceWith(false);
   },
 );
-it.each(["scrollend", "timeout", "append", "rerender"])(
+it.each(["scrollend", "timeout", "append", "replace", "collapse"])(
   "%s clears earlier downward intent before a programmatic bottom scroll",
   (completion) => {
     vi.useFakeTimers();
     try {
-      const { history, onExpandedChange, append, rerender } =
+      const { history, onExpandedChange, append, replace, collapse } =
         renderTranscript();
       history.scrollTop = 400;
       fireEvent.wheel(history, { deltaY: 100 });
@@ -231,7 +238,8 @@ it.each(["scrollend", "timeout", "append", "rerender"])(
         fireEvent(history, new Event("scrollend"));
       if (completion === "timeout") vi.advanceTimersByTime(200);
       if (completion === "append") append();
-      if (completion === "rerender") rerender();
+      if (completion === "replace") replace();
+      if (completion === "collapse") collapse();
       history.scrollTop = history.scrollHeight - history.clientHeight;
       fireEvent.scroll(history);
       expect(onExpandedChange).not.toHaveBeenCalled();
@@ -280,3 +288,42 @@ it("resize invalidates downward intent before its queued bottom scroll", () => {
   fireEvent.scroll(history);
   expect(onExpandedChange).not.toHaveBeenCalled();
 });
+
+for (const targetName of ["header", ".spg-composer"]) {
+  it.each(["wheel", "touch"])(
+    `%s over ${targetName} cannot authorize an immediate programmatic transcript collapse`,
+    (input) => {
+      const { history, onExpandedChange } = renderTranscript();
+      const target = history.parentElement!.querySelector(targetName)!;
+      history.scrollTop = 770;
+      if (input === "wheel") fireEvent.wheel(target, { deltaY: 10 });
+      else {
+        fireEvent.touchStart(target, { touches: [{ clientY: 200 }] });
+        fireEvent.touchMove(target, { touches: [{ clientY: 180 }] });
+      }
+      history.scrollTop = 800;
+      fireEvent.scroll(history);
+      expect(onExpandedChange).not.toHaveBeenCalled();
+      // An outside downward action while already at bottom still collapses.
+      fireEvent.wheel(target, { deltaY: 10 });
+      expect(onExpandedChange).toHaveBeenCalledExactlyOnceWith(false);
+    },
+  );
+}
+for (const update of ["rerender", "retitle"] as const) {
+  it.each(["End", "PageDown"])(
+    `%s keeps native scroll intent across ${update}`,
+    (key) => {
+      const view = renderTranscript();
+      view.history.scrollTop = 770;
+      fireEvent.keyDown(view.history, { key });
+      view.history.scrollTop = 780;
+      fireEvent.scroll(view.history);
+      view[update]();
+      expect(view.onExpandedChange).not.toHaveBeenCalled();
+      view.history.scrollTop = 800;
+      fireEvent.scroll(view.history);
+      expect(view.onExpandedChange).toHaveBeenCalledExactlyOnceWith(false);
+    },
+  );
+}
