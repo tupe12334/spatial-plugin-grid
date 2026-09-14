@@ -145,7 +145,7 @@ it("initial populated transcript starts at the latest message", () => {
   const { history } = renderTranscript();
   expect(history.scrollTop).toBe(800);
 });
-it.each(["wheel", "Home", "PageUp", "ArrowUp", "touch"])(
+it.each(["wheel", "Home", "PageUp", "ArrowUp", "touch", "Shift+Space"])(
   "%s intent relinquishes following before native scroll and resize events",
   (input) => {
     const { history, append } = renderTranscript();
@@ -153,7 +153,9 @@ it.each(["wheel", "Home", "PageUp", "ArrowUp", "touch"])(
     else if (input === "touch") {
       fireEvent.touchStart(history, { touches: [{ clientY: 200 }] });
       fireEvent.touchMove(history, { touches: [{ clientY: 250 }] });
-    } else fireEvent.keyDown(history, { key: input });
+    } else if (input === "Shift+Space")
+      fireEvent.keyDown(history, { key: " ", shiftKey: true });
+    else fireEvent.keyDown(history, { key: input });
     // A queued scroll at the old bottom must not override explicit intent.
     fireEvent.scroll(history);
     append();

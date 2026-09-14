@@ -286,7 +286,7 @@ test("transcript starts latest, follows near-bottom appends and preserves older 
   await expect(history).toHaveJSProperty("scrollTop", 100);
 });
 
-for (const input of ["wheel", "Home"] as const) {
+for (const input of ["wheel", "Home", "Shift+Space"] as const) {
   test(`first native ${input} leaves latest messages during expansion`, async ({
     page,
   }) => {
@@ -322,6 +322,37 @@ for (const input of ["wheel", "Home"] as const) {
     await expect(history).toHaveJSProperty("scrollTop", top);
   });
 }
+
+test("native Space returns from Home to bottom and resumes append following", async ({
+  page,
+}) => {
+  await page.goto(
+    "/iframe.html?id=mainstage--resizing-transcript&viewMode=story",
+  );
+  const history = page.getByRole("log");
+  const gap = () =>
+    history.evaluate(
+      (element) =>
+        element.scrollHeight - element.clientHeight - element.scrollTop,
+    );
+  await expect(history).toBeVisible();
+  await expect.poll(gap).toBeLessThanOrEqual(1);
+  await history.focus();
+  await history.press("Home");
+  await expect(history).toHaveJSProperty("scrollTop", 0);
+  await page.waitForTimeout(650);
+  for (let presses = 0; presses < 30 && (await gap()) > 1; presses++) {
+    const top = await history.evaluate((element) => element.scrollTop);
+    await history.press("Space");
+    await expect.poll(() => history.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(top);
+    await page.waitForTimeout(650);
+  }
+  await expect.poll(gap).toBeLessThanOrEqual(1);
+  await page.getByRole("button", { name: "Append message" }).click();
+  await expect(history.locator(".spg-message")).toHaveCount(31);
+  await expect.poll(gap).toBeLessThanOrEqual(1);
+});
 
 for (const following of [true, false]) {
   test(`integrated stage resize preserves ${following ? "latest bottom" : "older reading"} throughout expand/collapse`, async ({

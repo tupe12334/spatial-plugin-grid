@@ -213,12 +213,18 @@ export function MainStage({
         }}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
-          if (["ArrowUp", "PageUp", "Home"].includes(event.key)) {
+          if (
+            ["ArrowUp", "PageUp", "Home"].includes(event.key) ||
+            (event.key === " " && event.shiftKey)
+          ) {
             navigatingOlder.current = true;
             nearBottom.current = false;
             onExpandedChange(true);
           }
-          if (["ArrowDown", "PageDown", "End"].includes(event.key))
+          if (
+            ["ArrowDown", "PageDown", "End"].includes(event.key) ||
+            (event.key === " " && !event.shiftKey)
+          )
             setExpanded(false);
         }}
       >
