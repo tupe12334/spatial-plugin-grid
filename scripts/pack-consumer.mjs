@@ -18,7 +18,7 @@ try {
         type: "module",
         packageManager: "pnpm@9.15.9",
         dependencies: {
-          "@fideslayer/spatial-plugin-grid": `file:./${archive}`,
+          "@tupe12334/spatial-plugin-grid": `file:./${archive}`,
           react: reactVersion,
           "react-dom": reactVersion,
         },
@@ -32,7 +32,7 @@ try {
     );
     writeFileSync(
       join(temporary, "index.tsx"),
-      `import {SpatialPluginGrid, MainStage, geometry, type PluginDefinition} from '@fideslayer/spatial-plugin-grid';\nimport '@fideslayer/spatial-plugin-grid/styles.css';\nconst plugins: PluginDefinition[] = [{id:'consumer',title:'Consumer',home:'11',allowedSizes:['1x1'],render:({size})=><p>{size}</p>}];\nexport const app=<SpatialPluginGrid plugins={plugins}/>;\nexport const stage=<MainStage expanded={false} onExpandedChange={()=>{}}/>;\nimport {createRoot} from 'react-dom/client';\nconst root = document.getElementById('root');\nif (root) createRoot(root).render(app);\nconsole.log(geometry('34','1x2'));`,
+      `import {SpatialPluginGrid, MainStage, geometry, type PluginDefinition} from '@tupe12334/spatial-plugin-grid';\nimport '@tupe12334/spatial-plugin-grid/styles.css';\nconst plugins: PluginDefinition[] = [{id:'consumer',title:'Consumer',home:'11',allowedSizes:['1x1'],render:({size})=><p>{size}</p>}];\nexport const app=<SpatialPluginGrid plugins={plugins}/>;\nexport const stage=<MainStage expanded={false} onExpandedChange={()=>{}}/>;\nimport {createRoot} from 'react-dom/client';\nconst root = document.getElementById('root');\nif (root) createRoot(root).render(app);\nconsole.log(geometry('34','1x2'));`,
     );
     writeFileSync(
       join(temporary, "index.html"),
@@ -58,7 +58,7 @@ try {
     run("node", [
       "--input-type=module",
       "-e",
-      "import {SpatialPluginGrid,geometry} from '@fideslayer/spatial-plugin-grid'; if(typeof SpatialPluginGrid !== 'function' || geometry('31','1x2').row !== 2) throw Error('Invalid package import'); console.log('ESM import passed');",
+      "import {SpatialPluginGrid,geometry} from '@tupe12334/spatial-plugin-grid'; if(typeof SpatialPluginGrid !== 'function' || geometry('31','1x2').row !== 2) throw Error('Invalid package import'); console.log('ESM import passed');",
     ]);
     run("pnpm", ["exec", "vite", "build"]);
     console.log(
