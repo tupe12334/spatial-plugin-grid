@@ -71,18 +71,21 @@ export const AppendingTranscript: StoryObj<typeof MainStage> = {
 };
 
 export const ResizingTranscript: StoryObj<typeof MainStage> = {
-  render: () => (
-    <SpatialPluginGrid
-      className="demo-theme"
-      plugins={[]}
-      mainStage={{
-        transcript: Array.from({ length: 30 }, (_, index) => ({
-          id: String(index),
-          author: "AGENT",
-          content: `Message ${index + 1}`,
-        })),
-        composer: <input aria-label="Message" />,
-      }}
-    />
-  ),
+  render: function ResizingStage() {
+    const [count, setCount] = useState(30);
+    return (
+      <SpatialPluginGrid
+        className="demo-theme"
+        plugins={[]}
+        mainStage={{
+          transcript: Array.from({ length: count }, (_, index) => ({
+            id: String(index),
+            author: "AGENT",
+            content: `Message ${index + 1}`,
+          })),
+          composer: <button onClick={() => setCount(count + 1)}>Append message</button>,
+        }}
+      />
+    );
+  },
 };

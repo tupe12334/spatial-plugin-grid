@@ -341,6 +341,12 @@ for (const following of [true, false]) {
           Math.abs(following ? sample.gap : sample.top - 100),
         ).toBeLessThanOrEqual(1);
       }
+      await page.getByRole("button", { name: "Append message" }).click();
+      await expect.poll(() => history.evaluate((element) => ({
+        gap: element.scrollHeight - element.clientHeight - element.scrollTop,
+        top: element.scrollTop,
+      })).then(({ gap, top }) => Math.abs(following ? gap : top - 100)))
+        .toBeLessThanOrEqual(1);
     }
   });
 }
