@@ -59,7 +59,7 @@ the native Linux ownership probe covers the file-writer privilege boundary.
 
 The zero-threshold checks above are historical emulated-amd64 evidence, not
 native CI success. Native amd64 CI at the later PR #7 revision failed 30/40
-states with 1–14 counted pixels each. Original log:
+states with 1–10 counted pixels each. Original log:
 `/tmp/spg-ci-initial-failure.log`; actual/expected PNGs:
 `/tmp/spg-ci-evidence/test-results/visual`.
 

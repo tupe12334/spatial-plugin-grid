@@ -44,7 +44,7 @@ Playwright's pixelmatch comparator uses normalized YIQ color distance (0–1),
 not a percentage of pixels or an RGB channel allowance. Its squared cutoff is
 `35215 * threshold²`; pixels above it that pixelmatch counts as different still
 fail the comparison. Pixelmatch's existing antialias handling is unchanged.
-Native amd64 CI failed 30 of 40 states at threshold 0, with 1–14 counted pixels
+Native amd64 CI failed 30 of 40 states at threshold 0, with 1–10 counted pixels
 per state. Across every pixel in all 30 captured actual/expected PNG pairs,
 the maximum normalized distance was 0.0027740013094393837. The 0.003 cutoff
 accepts those demonstrated raster rounding differences; no masks, retries,
