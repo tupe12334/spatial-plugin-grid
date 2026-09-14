@@ -9,7 +9,7 @@ and push them separately. Do not bypass hooks. Manual `pnpm validate` needs no s
 `pnpm validate` guards HEAD and clean source, configuration, tests, packages,
 hooks, build inputs and committed baselines first, then runs lint, typecheck,
 unit tests, library build, React 18/19 packed-consumer smoke, one Storybook
-build, all 14 functional E2E tests and screenshot comparisons, then guards
+build, the full 20-test functional E2E suite and screenshot comparisons, then guards
 these inputs again even if a gate fails. Dirty unrelated documentation is allowed.
 No command calls the hook recursively. CI uses exactly this entry point; repository Actions permissions are managed
 separately. Local validation does not imply a remote CI result.
@@ -31,13 +31,26 @@ supply the actual system-ui fonts, with no host fonts mounted. Viewport
 1280×900 (narrow/RTL 390×844), DPR 1, en-US, UTC, dark color scheme,
 font-render-hinting, CPU rendering with GPU/software GPU fallback disabled,
 partial raster disabled, one raster thread, one worker, zero retries and zero
-pixel tolerance are fixed. Reduced-motion cases explicitly emulate that preference. Only screenshot
+differing-pixel allowance are fixed. Reduced-motion cases explicitly emulate that preference. Only screenshot
 tests disable animations/transitions/carets; functional motion assertions remain
 unchanged. Screenshot navigation loads the actual declared Storybook fonts before importing
 the entry module, then waits for the stage and five unchanged animation frames
 of transcript geometry, scroll positions, transforms and opacity. It does not
 replace fonts or rewrite product layout. Playwright also waits for stable
 consecutive screenshots.
+
+The screenshot color threshold is **0.003**, with `maxDiffPixels: 0`.
+Playwright's pixelmatch comparator uses normalized YIQ color distance (0–1),
+not a percentage of pixels or an RGB channel allowance. Its squared cutoff is
+`35215 * threshold²`; pixels above it that pixelmatch counts as different still
+fail the comparison. Pixelmatch's existing antialias handling is unchanged.
+Native amd64 CI failed 30 of 40 states at threshold 0, with 1–14 counted pixels
+per state. Across every pixel in all 30 captured actual/expected PNG pairs,
+the maximum normalized distance was 0.0027740013094393837. The 0.003 cutoff
+accepts those demonstrated raster rounding differences; no masks, retries,
+baseline regeneration or renderer flags were added. A direct installed-Playwright
+comparator regression accepts the measured worst color pair and rejects a single
+high-contrast pixel. See [threshold evidence](evidence/pre-push/README.md).
 
 Check mode uses Playwright's `updateSnapshots: "none"` (never update), verifies
 the exact PNG inventory and mounts baselines read-only. There is no automatic

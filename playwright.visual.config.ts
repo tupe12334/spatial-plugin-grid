@@ -28,7 +28,9 @@ export default defineConfig({
       animations: "disabled",
       caret: "hide",
       scale: "css",
-      threshold: 0,
+      // Native/emulated amd64 RGB rounding: measured YIQ max 0.0027740013094393837.
+      // Per-pixel color tolerance only; no differing-pixel allowance (docs/validation.md).
+      threshold: 0.003,
       maxDiffPixels: 0,
     },
   },

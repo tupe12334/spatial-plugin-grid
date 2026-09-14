@@ -29,7 +29,7 @@ waits for stable transcript layout/scroll/styles, disables partial raster and
 GPU/software GPU fallback, and uses one raster thread. This combined setup
 produced the two clean checks above; individual flag causality was not isolated.
 Fifteen reviewed baselines changed by 1–55 pixels at curved edges. Product code,
-fonts, screenshot thresholds and the 14 functional E2E tests are unchanged.
+fonts, screenshot thresholds and the functional E2E tests at that revision are unchanged.
 A mount-readiness timeout during the diagnostic update led to a 15-second
 readiness limit; subsequent full checks passed without retries.
 
@@ -40,8 +40,8 @@ and [deliberate mismatch diff](negative-mismatch-diff.png).
 The installed `.husky/_/pre-push` hook is invoked after committing, with actual
 HEAD in Git-format ref/SHA stdin, so the delivery response can report the exact
 validated commit and full gate result. It runs lint, typecheck, unit tests,
-build, React 18/19 packed-consumer smoke, one Storybook build, 14 functional
-E2E tests and 40 strict screenshot states, then checks HEAD and inputs again.
+build, React 18/19 packed-consumer smoke, one Storybook build, the full 20-test functional
+E2E suite and 40 screenshot states, then checks HEAD and inputs again.
 Delivery uses a normal hook-protected Git push and a reviewed pull request.
 This change does not modify repository Actions permissions; they were initially
 disabled and enabled separately during concurrent Pages setup.
@@ -54,3 +54,35 @@ replace it with a different state (then remove it), require `pnpm test:visual`
 to fail in each case, and restore the exact original bytes before validation.
 Windows Docker Desktop and a native Linux host were not exercised end-to-end;
 the native Linux ownership probe covers the file-writer privilege boundary.
+
+## Final CI color-threshold correction
+
+The zero-threshold checks above are historical emulated-amd64 evidence, not
+native CI success. Native amd64 CI at the later PR #7 revision failed 30/40
+states with 1–14 counted pixels each. Original log:
+`/tmp/spg-ci-initial-failure.log`; actual/expected PNGs:
+`/tmp/spg-ci-evidence/test-results/visual`.
+
+Scanning all pixels of all 30 captured PNG pairs independently reproduced
+Hermes's maximum normalized pixelmatch YIQ distance: **0.0027740013094393837**.
+The worst pair is actual RGBA `(140,145,158,255)` versus expected
+`(141,145,157,255)` at `(650,232)` in `mainstage--appending-transcript`.
+The installed Playwright comparator accepts every captured pair at **0.003**.
+This is per-pixel color distance, not a differing-pixel percentage;
+`maxDiffPixels: 0`, zero retries, no masks and read-only check baselines remain.
+No PNGs, renderer flags, dependencies, product code or release workflow changed.
+`tests/visual-comparator.test.ts` directly tests the installed comparator against
+this measured pair (also rejected at zero) and a single high-contrast pixel.
+
+Final proof files are under `/tmp/spg-final-threshold-proof`: `measurement.json`,
+`measure.cjs`, `visual-proof.py`, `check-1.log`, `check-2.log`,
+`negative-mismatch.log`, `negative-missing.log`, `baseline-hashes.json`,
+`baseline-hashes-restored.json`, `proof.log`, `fast-gates.log` and `full-gate.log`.
+The two positive checks each passed **40/40** states. The real Playwright
+mismatched-baseline check failed with **1 failed, 39 passed**, reporting
+**1,125,758** differing pixels. The missing-inventory check failed without
+recreating the PNG. Both exited 1; all 40 SHA-256 hashes were restored exactly.
+Lint, typecheck, 125 unit tests, library build, React 18/19 packed consumers
+and 35 release-guard tests passed (`pack.log` records the consumer checks). These local proofs do not establish native CI
+success: the final committed SHA still needs the user's hook-protected push
+and a passing native CI full gate. No push is performed for this correction.
