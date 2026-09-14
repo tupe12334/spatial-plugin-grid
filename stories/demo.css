@@ -1,0 +1,67 @@
+.demo-theme {
+  --spg-canvas: #10141e;
+  --spg-surface: #1d2c41;
+  --spg-surface-hover: #2c4361;
+  --spg-surface-raised: #141c2a;
+  --spg-control: #172438;
+  --spg-foreground: #edf4ff;
+  --spg-muted: #9fb4d0;
+  --spg-border: #3c526f;
+  --spg-accent: #0a84ff;
+  --spg-accent-hover: #409cff;
+  --spg-on-accent: #fff;
+  --spg-focus: #9fbfff;
+  --spg-shadow: #0006;
+  --spg-highlight: #ffffff12;
+}
+.demo-light {
+  --spg-canvas: #eef2f7;
+  --spg-surface: #fff;
+  --spg-surface-hover: #e7eef7;
+  --spg-surface-raised: #f8fafc;
+  --spg-control: #fff;
+  --spg-foreground: #152238;
+  --spg-muted: #52657d;
+  --spg-border: #bbc9da;
+  --spg-accent: #0067c5;
+  --spg-accent-hover: #004f9c;
+  --spg-on-accent: #fff;
+  --spg-focus: #005aad;
+  --spg-shadow: #1232;
+  --spg-highlight: #ffffffaa;
+}
+.demo-plugin {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.demo-plugin strong {
+  font-size: clamp(20px, 4vw, 56px);
+  font-weight: 500;
+}
+.demo-plugin span {
+  color: var(--spg-muted);
+  font-size: 12px;
+}
+.demo-mount {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 10000;
+}
+
+.demo-reduced * {
+  transition: none !important;
+  animation: none !important;
+}
+.demo-reduced .spg-history {
+  perspective: none;
+  mask-image: none;
+}
+.demo-reduced .spg-message {
+  transform: none !important;
+  opacity: 1 !important;
+}

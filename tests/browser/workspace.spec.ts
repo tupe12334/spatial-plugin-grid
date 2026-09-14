@@ -1,0 +1,250 @@
+import { expect, test, type Page } from "@playwright/test";
+import { geometry, pluginHomes, sizesFor } from "../../src/layout";
+const open = async (page: Page, story = "reference-workspace") => {
+  await page.goto(`/iframe.html?id=workspace--${story}&viewMode=story`);
+  await expect(page.locator(".spg-stage")).toBeVisible();
+};
+const box = async (page: Page, selector: string) => {
+  const result = await page.locator(selector).boundingBox();
+  if (!result) throw new Error(`Missing ${selector}`);
+  return result;
+};
+const close = (a: number, b: number) =>
+  expect(Math.abs(a - b)).toBeLessThan(1.5);
+async function noOverflow(page: Page) {
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollHeight <= innerHeight &&
+        document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+}
+test("default layout and every allowed size: inward overlays, home labels, no reflow or overflow", async ({
+  page,
+}) => {
+  await open(page);
+  const baseline = await Promise.all(
+    pluginHomes.map((home) => box(page, `[data-home="${home}"]`)),
+  );
+  const first = baseline[0]!;
+  close(first.x, 12);
+  close(first.y, 76);
+  for (const home of pluginHomes)
+    for (const size of sizesFor(home)) {
+      await page.locator(`[data-home="${home}"] select`).selectOption(size);
+      const rect = geometry(home, size),
+        actual = await box(page, `[data-home="${home}"]`);
+      close(actual.x, 12 + (rect.column - 1) * (first.width + 12));
+      close(actual.y, 76 + (rect.row - 1) * (first.height + 12));
+      close(actual.width, rect.columns * first.width + (rect.columns - 1) * 12);
+      close(actual.height, rect.rows * first.height + (rect.rows - 1) * 12);
+      for (let i = 0; i < pluginHomes.length; i++)
+        if (pluginHomes[i] !== home) {
+          const other = await box(page, `[data-home="${pluginHomes[i]}"]`);
+          expect(other).toEqual(baseline[i]);
+        }
+      await expect(page.locator(`[data-home="${home}"] .spg-home`)).toHaveText(
+        home,
+      );
+      await noOverflow(page);
+      await page.locator(`[data-home="${home}"] select`).selectOption("1x1");
+    }
+  await page.screenshot({ path: "test-results/reference-workspace.png" });
+});
+test("main stage has intermediate geometry in BOTH directions and pinned composer", async ({
+  page,
+}) => {
+  await open(page);
+  const base = await box(page, ".spg-stage"),
+    composer = await box(page, ".spg-composer");
+  await page
+    .locator(".spg-stage-content")
+    .dispatchEvent("wheel", { deltaY: -100 });
+  await page.waitForTimeout(80);
+  const expanding = await box(page, ".spg-stage");
+  expect(expanding.height).toBeGreaterThan(base.height + 10);
+  expect(expanding.height).toBeLessThan(base.height * 2 + 11);
+  close((await box(page, ".spg-composer")).y, composer.y);
+  await page.waitForTimeout(500);
+  const expanded = await box(page, ".spg-stage");
+  close(expanded.height, base.height * 2 + 12);
+  close(expanded.y + expanded.height, base.y + base.height);
+  await expect(page.locator('[data-home="22"]')).toHaveJSProperty(
+    "inert",
+    true,
+  );
+  await page.screenshot({ path: "test-results/expanded-stage.png" });
+  await page
+    .locator(".spg-stage-content")
+    .dispatchEvent("wheel", { deltaY: 100 });
+  await page.waitForTimeout(80);
+  const collapsing = await box(page, ".spg-stage");
+  expect(collapsing.height).toBeGreaterThan(base.height + 1);
+  expect(collapsing.height).toBeLessThan(expanded.height - 10);
+  close((await box(page, ".spg-composer")).y, composer.y);
+  await page.waitForTimeout(500);
+  close((await box(page, ".spg-stage")).height, base.height);
+  await expect(page.locator('[data-home="22"]')).toHaveJSProperty(
+    "inert",
+    false,
+  );
+  await noOverflow(page);
+});
+test("keyboard, Escape, touch up/down and reduced-motion final geometry", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page);
+  const base = await box(page, ".spg-stage"),
+    history = page.getByRole("log");
+  for (const key of ["ArrowUp", "PageUp", "Home"]) {
+    await history.focus();
+    await history.press(key);
+    close((await box(page, ".spg-stage")).height, base.height * 2 + 12);
+    await history.press("Escape");
+    close((await box(page, ".spg-stage")).height, base.height);
+  }
+  for (const key of ["ArrowDown", "PageDown", "End"]) {
+    await page.getByRole("button", { name: /Expand/ }).click();
+    await history.focus();
+    await history.press(key);
+    close((await box(page, ".spg-stage")).height, base.height);
+  }
+  await history.dispatchEvent("touchstart", {
+    touches: [{ identifier: 1, clientY: 300 }],
+  });
+  await history.dispatchEvent("touchmove", {
+    touches: [{ identifier: 1, clientY: 200 }],
+  });
+  close((await box(page, ".spg-stage")).height, base.height * 2 + 12);
+  await history.dispatchEvent("touchmove", {
+    touches: [{ identifier: 1, clientY: 350 }],
+  });
+  close((await box(page, ".spg-stage")).height, base.height);
+  expect(
+    await page
+      .locator(".spg-message")
+      .first()
+      .evaluate((element) => getComputedStyle(element).transform),
+  ).toBe("none");
+  expect(
+    await page
+      .locator(".spg-stage")
+      .evaluate((element) => getComputedStyle(element).transitionDuration),
+  ).toBe("0s");
+});
+test("latest expansion fronts prior panels and recovers focus", async ({
+  page,
+}) => {
+  await open(page);
+  await page.locator('[data-home="11"] select').selectOption("2x2");
+  await page.locator('[data-home="31"] select').selectOption("1x2");
+  await expect(page.locator('[data-home="11"]')).toHaveJSProperty(
+    "inert",
+    true,
+  );
+  await page.locator('[data-home="31"] select').press("Escape");
+  await expect(page.locator('[data-home="11"]')).toHaveJSProperty(
+    "inert",
+    false,
+  );
+  await page.locator('[data-home="11"] select').selectOption("1x1");
+  await expect(page.locator('[data-home="22"]')).toHaveJSProperty(
+    "inert",
+    false,
+  );
+});
+test("theme changes live and narrow/RTL geometry remains fixed", async ({
+  page,
+}) => {
+  await open(page, "theme-updates");
+  const color = await page
+    .locator(".spg-root")
+    .evaluate((element) => getComputedStyle(element).backgroundColor);
+  await page.getByRole("button", { name: "Change theme" }).click();
+  expect(
+    await page
+      .locator(".spg-root")
+      .evaluate((element) => getComputedStyle(element).backgroundColor),
+  ).not.toBe(color);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await noOverflow(page);
+  await open(page, "rtl");
+  expect((await box(page, '[data-home="11"]')).x).toBeLessThan(
+    (await box(page, '[data-home="14"]')).x,
+  );
+  await noOverflow(page);
+  await page.screenshot({ path: "test-results/narrow-rtl.png" });
+});
+test("unmount disconnects all ResizeObservers and remount works", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const Original = window.ResizeObserver;
+    let active = 0;
+    Object.defineProperty(window, "spgObservers", { get: () => active });
+    window.ResizeObserver = class extends Original {
+      private counted = false;
+      override observe(target: Element, options?: ResizeObserverOptions) {
+        if (!this.counted) {
+          active++;
+          this.counted = true;
+        }
+        super.observe(target, options);
+      }
+      override disconnect() {
+        if (this.counted) {
+          active--;
+          this.counted = false;
+        }
+        super.disconnect();
+      }
+    };
+  });
+  await open(page, "cleanup");
+  const count = () =>
+    page.evaluate(() => Reflect.get(window, "spgObservers") as number);
+  const mounted = await count();
+  await page.getByRole("button", { name: "Toggle mount" }).click();
+  expect(await count()).toBeLessThan(mounted);
+  await page.getByRole("button", { name: "Toggle mount" }).click();
+  await expect(page.locator(".spg-stage")).toBeVisible();
+  expect(await count()).toBe(mounted);
+});
+
+test("native wheel and toggle keyboard activation; covered controls leave tab order", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page);
+  await page.locator('[data-home="22"] select').focus();
+  await page.locator('[data-home="11"] select').selectOption("2x2");
+  await expect(page.locator('[data-home="11"] select')).toBeFocused();
+  await page
+    .locator('[data-home="22"] select')
+    .evaluate((element) => element.focus());
+  await expect(page.locator('[data-home="11"] select')).toBeFocused();
+  for (let step = 0; step < 16; step++) {
+    await page.keyboard.press("Tab");
+    expect(
+      await page.evaluate(
+        () => document.activeElement?.closest("[inert]") === null,
+      ),
+    ).toBe(true);
+  }
+  await page.locator('[data-home="11"] select').selectOption("1x1");
+  await page.locator('[data-home="22"] select').focus();
+  await expect(page.locator('[data-home="22"] select')).toBeFocused();
+  const toggle = page.locator(".spg-stage-header button");
+  await toggle.focus();
+  await toggle.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await toggle.press("Space");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await page.locator(".spg-history").hover();
+  await page.mouse.wheel(0, -100);
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await page.mouse.wheel(0, 100);
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+});
