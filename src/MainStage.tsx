@@ -77,9 +77,30 @@ export function MainStage({
       element?.removeEventListener("scrollend", clearDownward);
     };
   }, []);
+  const contentObserver = useRef<MutationObserver | null>(null);
+  useLayoutEffect(() => {
+    const element = history.current;
+    if (!element) return;
+    const observer = new MutationObserver(clearDownward);
+    contentObserver.current = observer;
+    // Observe rendered content, not prop identity or our scroll-driven styles.
+    observer.observe(element, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+    return () => {
+      observer.disconnect();
+      contentObserver.current = null;
+    };
+  }, []);
+  useLayoutEffect(() => {
+    // Invalidate synchronously before append-following can queue a scroll.
+    if (contentObserver.current?.takeRecords().length) clearDownward();
+  });
   useLayoutEffect(() => {
     clearDownward();
-  }, [transcript, expanded]);
+  }, [expanded]);
   const id = useId();
   useLayoutEffect(() => {
     const element = history.current;
@@ -99,6 +120,7 @@ export function MainStage({
     }
     previousEntries.current = ids;
   });
+  const customTranscript = typeof transcript === "function";
   useEffect(() => {
     const element = history.current;
     if (!element) return;
@@ -127,15 +149,11 @@ export function MainStage({
       const heightChange =
         element.clientHeight - (historyHeight.current ?? element.clientHeight);
       historyHeight.current = element.clientHeight;
-      if (
-        typeof transcript !== "function" &&
-        navigatingOlder.current &&
-        heightChange > 0
-      ) {
+      if (!customTranscript && navigatingOlder.current && heightChange > 0) {
         // Growing the viewport would otherwise consume the first upward
         // scroll's gap. Keep that navigation while the stage expands.
         element.scrollTop = Math.max(0, element.scrollTop - heightChange);
-      } else if (typeof transcript !== "function" && nearBottom.current) {
+      } else if (!customTranscript && nearBottom.current) {
         element.scrollTop = Math.max(
           0,
           element.scrollHeight - element.clientHeight,
@@ -155,7 +173,7 @@ export function MainStage({
       element.removeEventListener("scroll", update);
       media.removeEventListener("change", update);
     };
-  }, [transcript]);
+  }, [customTranscript]);
   const setExpanded = (value: boolean) => {
     clearDownward();
     navigatingOlder.current = false;

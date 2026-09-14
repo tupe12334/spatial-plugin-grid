@@ -120,7 +120,11 @@ function renderTranscript() {
     content: `Message ${index}`,
   }));
   const onExpandedChange = vi.fn();
-  const stage = (transcript = entries, title = "Main stage", expanded = true) => (
+  const stage = (
+    transcript = entries,
+    title = "Main stage",
+    expanded = true,
+  ) => (
     <MainStage
       expanded={expanded}
       title={title}
@@ -133,6 +137,8 @@ function renderTranscript() {
     onExpandedChange,
     history: screen.getByRole("log"),
     rerender: () => view.rerender(stage(entries)),
+    recreate: () =>
+      view.rerender(stage(entries.map((entry) => ({ ...entry })))),
     retitle: () => view.rerender(stage(entries, "Updated title")),
     collapse: () => view.rerender(stage(entries, undefined, false)),
     replace: () =>
@@ -310,7 +316,7 @@ for (const targetName of ["header", ".spg-composer"]) {
     },
   );
 }
-for (const update of ["rerender", "retitle"] as const) {
+for (const update of ["rerender", "retitle", "recreate"] as const) {
   it.each(["End", "PageDown"])(
     `%s keeps native scroll intent across ${update}`,
     (key) => {
@@ -327,3 +333,33 @@ for (const update of ["rerender", "retitle"] as const) {
     },
   );
 }
+
+it.each([false, true])(
+  "End across a recreated render function (content changed: %s)",
+  (changed) => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+      1000,
+    );
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+    const change = vi.fn();
+    const stage = (text: string) => (
+      <MainStage
+        expanded
+        onExpandedChange={change}
+        transcript={() => <p>{text}</p>}
+      />
+    );
+    const view = render(stage("Same content"));
+    const history = screen.getByRole("log");
+    history.scrollTop = 770;
+    fireEvent.keyDown(history, { key: "End" });
+    history.scrollTop = 780;
+    fireEvent.scroll(history);
+    view.rerender(stage(changed ? "Changed content" : "Same content"));
+    expect(change).not.toHaveBeenCalled();
+    history.scrollTop = 800;
+    fireEvent.scroll(history);
+    if (changed) expect(change).not.toHaveBeenCalled();
+    else expect(change).toHaveBeenCalledExactlyOnceWith(false);
+  },
+);
