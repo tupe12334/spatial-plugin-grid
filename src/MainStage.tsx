@@ -78,10 +78,15 @@ export function MainStage({
     };
   }, []);
   const contentObserver = useRef<MutationObserver | null>(null);
+  const refreshPresentation = useRef<(() => void) | null>(null);
+  const contentChanged = useRef(false);
   useLayoutEffect(() => {
     const element = history.current;
     if (!element) return;
-    const observer = new MutationObserver(clearDownward);
+    const observer = new MutationObserver(() => {
+      clearDownward();
+      refreshPresentation.current?.();
+    });
     contentObserver.current = observer;
     // Observe rendered content, not prop identity or our scroll-driven styles.
     observer.observe(element, {
@@ -96,7 +101,10 @@ export function MainStage({
   }, []);
   useLayoutEffect(() => {
     // Invalidate synchronously before append-following can queue a scroll.
-    if (contentObserver.current?.takeRecords().length) clearDownward();
+    if (contentObserver.current?.takeRecords().length) {
+      clearDownward();
+      contentChanged.current = true;
+    }
   });
   useLayoutEffect(() => {
     clearDownward();
@@ -119,6 +127,13 @@ export function MainStage({
       );
     }
     previousEntries.current = ids;
+  });
+  useLayoutEffect(() => {
+    if (contentChanged.current) {
+      // Apply depth after append-following has settled the scroll position.
+      refreshPresentation.current?.();
+      contentChanged.current = false;
+    }
   });
   const customTranscript = typeof transcript === "function";
   useEffect(() => {
@@ -144,6 +159,7 @@ export function MainStage({
         child.style.opacity = media.matches ? "1" : String(1 - depth * 0.72);
       }
     };
+    refreshPresentation.current = update;
     const observer = new ResizeObserver(() => {
       clearDownward();
       const heightChange =
@@ -169,6 +185,7 @@ export function MainStage({
     media.addEventListener("change", update);
     update();
     return () => {
+      refreshPresentation.current = null;
       observer.disconnect();
       element.removeEventListener("scroll", update);
       media.removeEventListener("change", update);

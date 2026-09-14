@@ -145,6 +145,10 @@ function renderTranscript() {
       view.rerender(
         stage(entries.map((entry) => ({ ...entry, content: "Updated" }))),
       ),
+    replaceIds: () =>
+      view.rerender(
+        stage(entries.map((entry) => ({ ...entry, id: `new-${entry.id}` }))),
+      ),
     append: () => {
       height += 100;
       entries.push({
@@ -159,6 +163,26 @@ function renderTranscript() {
 it("initial populated transcript starts at the latest message", () => {
   const { history } = renderTranscript();
   expect(history.scrollTop).toBe(800);
+});
+it("styles replacement entries without scroll or resize when reduced motion is disabled", () => {
+  const { history, replaceIds } = renderTranscript();
+  const original = history.querySelector<HTMLElement>(".spg-message")!;
+  const { transform, opacity } = original.style;
+  expect(transform).toContain("translateZ(-170px) rotateX(12deg)");
+  expect(Number(opacity)).toBeCloseTo(0.28);
+
+  replaceIds();
+
+  expect(history.scrollTop).toBe(800);
+  const replacements = history.querySelectorAll<HTMLElement>(".spg-message");
+  expect(replacements).toHaveLength(20);
+  expect(replacements[0]).not.toBe(original);
+  for (const entry of replacements) {
+    expect(entry.style.transform).toBe(transform);
+    expect(entry.style.opacity).toBe(opacity);
+  }
+  expect(disconnect).not.toHaveBeenCalled();
+  expect(remove).not.toHaveBeenCalled();
 });
 it.each(["wheel", "Home", "PageUp", "ArrowUp", "touch", "Shift+Space"])(
   "%s intent relinquishes following before native scroll and resize events",
