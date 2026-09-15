@@ -181,6 +181,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:release
+pnpm test:release-tooling
 pnpm build
 pnpm test:pack
 pnpm storybook --ci --smoke-test --port 16067
@@ -194,8 +195,27 @@ For a prerelease dry run, use `--tag next`.
 
 ### Normal releases
 
-1. Change `package.json` to a new, unused strict SemVer version and merge the reviewed PR into `main` after CI passes. Build metadata (`+...`) is deliberately rejected because npm normalizes it away.
-2. Create a tag exactly `v<package.version>` on that reviewed main commit and publish a GitHub release for the tag. For a version such as `0.2.0-rc.1`, mark the GitHub release as a prerelease; stable versions such as `0.2.0` must not have that flag.
-3. The published-release event checks the exact tag/version, flag, and commit ancestry on `origin/main`, then runs all existing CI validations. Only after success can the publish job request OIDC and publish publicly with provenance to `https://registry.npmjs.org/`. Stable releases use `latest`; prereleases use `next`. Drafts and tag pushes alone do not publish. The workflow serializes runs and does not cancel an active publication.
-4. Check the workflow result and npm version/dist-tag. Versions cannot be overwritten; if a publication succeeded, use a new version for subsequent changes. The workflow never automatically bumps, tags, or creates releases. Publish stable versions in ascending order: publishing an older stable version would move `latest` backward.
+Versioning and changelogs are owned exclusively by [Changesets](https://github.com/changesets/changesets); commit messages are enforced as [Conventional Commits](https://www.conventionalcommits.org/) by commitlint (`commitlint.config.mjs`, `.husky/commit-msg`, and the `Commitlint` GitHub Actions check, which lints only the commits in the current push/PR range — the pre-existing, non-conventional history on `main` is never re-checked). Tagging and the GitHub release are owned exclusively by [release-it](https://github.com/release-it/release-it) (`.release-it.json`), which never bumps the version, commits, or publishes to npm — npm publishing stays in `publish.yml`, triggered by the GitHub release release-it creates.
+
+1. **Propose a change.** Land a normal PR; if it should ship a release, include a changeset (`pnpm changeset`, or `pnpm changeset add --empty` for changes that shouldn't release). `pnpm changeset status` reports pending changesets.
+2. **Version PR.** Run `pnpm run version` (`changeset version`), then `pnpm install --lockfile-only` to consume the pending changesets, bump `package.json`, and update `CHANGELOG.md`. Open this as its own reviewed PR — version edits always go through review before a release, never as a side effect of releasing. Merge it into `main` after CI passes.
+3. **Release.** From a clean, up-to-date local `main` checkout (`git checkout main && git pull`), run `pnpm release` (`release-it`). It requires a `GITHUB_TOKEN` env var (a `gh auth token`, or a classic/fine-grained PAT with `repo` scope, since the workflow-generated `GITHUB_TOKEN` in Actions cannot trigger another workflow run and is not usable here):
+
+   ```sh
+   GITHUB_TOKEN="$(gh auth token)" pnpm release
+   ```
+
+   Before touching anything, `.release-it.json`'s `before:init` hook (`scripts/release-preflight.mjs`) verifies: a non-empty GITHUB_TOKEN, a completely clean working tree (including untracked files), no pending changesets, `main` is checked out and matches `origin/main`, `CHANGELOG.md` has a non-empty `## <version>` section for the current `package.json` version, and no `v<version>` tag already exists locally or on `origin`. release-it then tags `v<package.version>` (annotated), pushes the tag, and creates a GitHub release whose title and body come from that same `CHANGELOG.md` section (`scripts/changelog-entry.mjs` — no separate release-notes generator). It performs no version bump, no commit, and no `npm publish`.
+4. **Prerelease.** The same flow supports prerelease versions (e.g. `0.2.0-rc.1`): give the version PR a prerelease version via `pnpm changeset pre enter rc && pnpm run version` (`pnpm changeset pre exit` to leave prerelease mode later), then release normally. release-it detects the prerelease identifier in the version string and marks the GitHub release as a prerelease automatically, matching what `release-guard.mjs` requires for the tag/version/prerelease-flag triple.
+5. Publishing itself is unchanged: the GitHub release (`published`) event triggers `publish.yml`, which re-validates tag/version/main-ancestry and CI, then publishes with OIDC provenance — stable versions to `latest`, prereleases to `next`. See the section above for that workflow's guarantees.
+6. Versions cannot be overwritten; if a publication succeeded, use a new version for subsequent changes. Publish stable versions in ascending order: publishing an older stable version would move `latest` backward.
+
+Dry run without touching anything (no real tag, push, or GitHub release):
+
+```sh
+pnpm release:dry
+```
+
+`pnpm release:dry` runs `release-it --dry-run --ci`. release-it skips all write-side hooks in `--dry-run` mode (including the preflight guard above), so it proves the tag/push/release plan without needing a `GITHUB_TOKEN`. `scripts/release-preflight.test.mjs`, `scripts/release-it-dry-run.test.mjs`, `scripts/changeset-fixture.test.mjs`, `scripts/changelog-entry.test.mjs`, and `scripts/commitlint.test.mjs` (run together as `pnpm test:release-tooling`) exercise the real commitlint CLI, the real `@changesets/write`/`changeset status`/`changeset version` CLI, and a real `release-it --dry-run` against disposable fixture repos — never this repository's own `package.json`, `CHANGELOG.md`, or git history.
+
 See [local pre-push validation and screenshot review](docs/validation.md) for Docker setup, gates and intentional baseline updates.

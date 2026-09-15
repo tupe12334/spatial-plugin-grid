@@ -2,6 +2,7 @@
 import { afterEach, expect, test } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, cpSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { setImmediate } from "node:timers/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -12,11 +13,13 @@ import {
   verifyBaselines,
 } from "./visual/registry";
 const roots: string[] = [];
-afterEach(() =>
+afterEach(async () => {
   roots
     .splice(0)
-    .forEach((root) => rmSync(root, { recursive: true, force: true })),
-);
+    .forEach((root) => rmSync(root, { recursive: true, force: true }));
+  // Let worker messages drain between synchronous Git integration fixtures.
+  await setImmediate();
+});
 const env = Object.fromEntries(
   Object.entries(process.env).filter(
     ([key]) => !key.toUpperCase().startsWith("GIT_"),
@@ -153,7 +156,7 @@ for (const kind of [
     expect(
       git("--git-dir", remote, "for-each-ref", "refs/heads").toString(),
     ).toBe("");
-  });
+  }, 30_000);
 }
 
 const inputGuard = pathToFileURL(
