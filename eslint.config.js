@@ -1,6 +1,7 @@
-import js from "@eslint/js";
-import ts from "typescript-eslint";
-export default ts.config(
+import recommendedIncremental from "eslint-config-agent/recommended-incremental";
+
+export default [
+  ...recommendedIncremental,
   {
     ignores: [
       "dist/**",
@@ -9,10 +10,8 @@ export default ts.config(
       "playwright-report/**",
     ],
   },
-  js.configs.recommended,
-  ...ts.configs.recommended,
   {
     files: ["**/*.mjs"],
     languageOptions: { globals: { process: "readonly", console: "readonly" } },
   },
-);
+];
