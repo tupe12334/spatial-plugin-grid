@@ -83,9 +83,38 @@ export const ResizingTranscript: StoryObj<typeof MainStage> = {
             author: "AGENT",
             content: `Message ${index + 1}`,
           })),
-          composer: <button onClick={() => setCount(count + 1)}>Append message</button>,
+          composer: (
+            <button onClick={() => setCount(count + 1)}>Append message</button>
+          ),
         }}
       />
+    );
+  },
+};
+
+export const Locked: StoryObj<typeof MainStage> = {
+  render: function LockedStage() {
+    const [expanded, setExpanded] = useState(true);
+    const [locked, setLocked] = useState(true);
+    return (
+      <div className="spg-root demo-theme" style={{ height: 420 }}>
+        <MainStage
+          expanded={expanded}
+          onExpandedChange={setExpanded}
+          locked={locked}
+          onLockedChange={setLocked}
+          transcript={[
+            {
+              id: "pin",
+              author: "AGENT",
+              content: "The stage stays expanded until you unlock it.",
+            },
+          ]}
+          composer={({ setExpanded }) => (
+            <button onClick={() => setExpanded(false)}>Host collapse</button>
+          )}
+        />
+      </div>
     );
   },
 };

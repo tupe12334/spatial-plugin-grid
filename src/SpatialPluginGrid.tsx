@@ -29,13 +29,17 @@ export interface PluginDefinition extends RegistryEntry {
 }
 export interface SpatialPluginGridProps {
   plugins: readonly PluginDefinition[];
-  mainStage?: Omit<MainStageProps, "expanded" | "onExpandedChange">;
+  mainStage?: Omit<
+    MainStageProps,
+    "expanded" | "onExpandedChange" | "locked" | "onLockedChange"
+  >;
   preset?: LayoutPreset;
   navbar?: ReactNode;
   className?: string;
   style?: CSSProperties;
   dir?: "ltr" | "rtl";
   onPluginSizeChange?: (id: string, size: PluginSize) => void;
+  onStageLockedChange?: (locked: boolean) => void;
   onStageExpandedChange?: (expanded: boolean) => void;
   onPluginError?: (id: string, error: Error, info: ErrorInfo) => void;
 }
@@ -76,6 +80,7 @@ interface State {
   layers: Record<string, number>;
   clock: number;
   stage: boolean;
+  locked: boolean;
   stageLayer: number;
   stageCover: boolean;
 }
@@ -95,6 +100,7 @@ export function SpatialPluginGrid({
   dir,
   onPluginSizeChange,
   onStageExpandedChange,
+  onStageLockedChange,
   onPluginError,
 }: SpatialPluginGridProps) {
   validateRegistry(plugins);
@@ -109,10 +115,18 @@ export function SpatialPluginGrid({
     layers: {},
     clock: 0,
     stage: false,
+    locked: false,
     stageLayer: 0,
     stageCover: false,
   });
   const root = useRef<HTMLDivElement>(null);
+  const stageControl = useRef({ expanded: state.stage, locked: state.locked });
+  const committedLocked = useRef(state.locked);
+  useLayoutEffect(() => {
+    // Pending requests deduplicate a batch; only commits release a visible lock.
+    stageControl.current = { expanded: state.stage, locked: state.locked };
+    committedLocked.current = state.locked;
+  });
   const sizeOf = (plugin: PluginDefinition): PluginSize => {
     const size = state.sizes[plugin.id] ?? "1x1";
     return plugin.allowedSizes.includes(size) ? size : "1x1";
@@ -132,7 +146,13 @@ export function SpatialPluginGrid({
     onPluginSizeChange?.(plugin.id, size);
   };
   const setExpanded = (expanded: boolean) => {
-    if (state.stage === expanded) return;
+    const current = stageControl.current;
+    if (
+      (!expanded && (committedLocked.current || current.locked)) ||
+      current.expanded === expanded
+    )
+      return;
+    stageControl.current = { ...current, expanded };
     setState((previous) => ({
       ...previous,
       stage: expanded,
@@ -142,6 +162,24 @@ export function SpatialPluginGrid({
     }));
     onStageExpandedChange?.(expanded);
   };
+  const setLocked = (locked: boolean) => {
+    const current = stageControl.current;
+    if (current.locked === locked) return;
+    stageControl.current = { expanded: locked || current.expanded, locked };
+    setState((previous) => ({
+      ...previous,
+      locked,
+      stage: locked || previous.stage,
+      stageCover: locked || previous.stageCover,
+      stageLayer:
+        locked && !previous.stage ? previous.clock + 1 : previous.stageLayer,
+      clock: locked && !previous.stage ? previous.clock + 1 : previous.clock,
+    }));
+    if (locked && !current.expanded) onStageExpandedChange?.(true);
+    onStageLockedChange?.(locked);
+  };
+  // Keep the historical layer for ordinary latest-expansion ordering on unlock.
+  const stageLayer = state.locked ? state.clock + 1 : state.stageLayer;
   useLayoutEffect(() => {
     if (state.stage || !state.stageCover) return;
     const media = matchMedia("(prefers-reduced-motion: reduce)");
@@ -171,14 +209,14 @@ export function SpatialPluginGrid({
               other.layer > item.layer && intersects(other.rect, item.rect),
           ) ||
           (state.stageCover &&
-            state.stageLayer > item.layer &&
+            stageLayer > item.layer &&
             intersects(stageRect(true), item.rect)),
       )
       .map((item) => item.plugin.id),
   );
   const stageCovered = items.some(
     (item) =>
-      item.layer > state.stageLayer &&
+      item.layer > stageLayer &&
       intersects(item.rect, stageRect(state.stageCover)),
   );
   useLayoutEffect(() => {
@@ -283,7 +321,8 @@ export function SpatialPluginGrid({
           data-spg-panel="stage"
           data-covered={stageCovered}
           data-expanded={state.stage}
-          style={{ zIndex: state.stageLayer }}
+          data-locked={state.locked}
+          style={{ zIndex: stageLayer }}
           onTransitionEnd={(event) => {
             if (
               event.target === event.currentTarget &&
@@ -299,6 +338,8 @@ export function SpatialPluginGrid({
         >
           <MainStage
             {...mainStage}
+            locked={state.locked}
+            onLockedChange={setLocked}
             expanded={state.stage}
             onExpandedChange={setExpanded}
           />

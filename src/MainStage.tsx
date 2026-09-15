@@ -3,11 +3,14 @@ import {
   useLayoutEffect,
   useId,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 export interface StageRenderContext {
   expanded: boolean;
   setExpanded: (expanded: boolean) => void;
+  locked: boolean;
+  setLocked: (locked: boolean) => void;
 }
 export interface TranscriptEntry {
   id: string;
@@ -17,6 +20,8 @@ export interface TranscriptEntry {
 export interface MainStageProps {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  locked?: boolean;
+  onLockedChange?: (locked: boolean) => void;
   title?: string;
   transcript?:
     | readonly TranscriptEntry[]
@@ -24,12 +29,29 @@ export interface MainStageProps {
   composer?: ReactNode | ((context: StageRenderContext) => ReactNode);
 }
 export function MainStage({
-  expanded,
+  expanded: requestedExpanded,
   onExpandedChange,
+  locked: controlledLocked,
+  onLockedChange,
   title = "Main stage",
   transcript = [],
   composer,
 }: MainStageProps) {
+  const [localLocked, setLocalLocked] = useState(false);
+  const locked = controlledLocked ?? localLocked;
+  const expanded = requestedExpanded || locked;
+  const committedLocked = useRef(locked);
+  // undefined means no request in this batch; false is an explicit unlock.
+  const pendingLock = useRef<boolean>();
+  useLayoutEffect(() => {
+    // Abandoned renders must not unlock controls in the committed UI.
+    committedLocked.current = locked;
+    pendingLock.current = undefined;
+  });
+  const requestExpanded = (value: boolean) => {
+    if (!value && (committedLocked.current || pendingLock.current)) return;
+    onExpandedChange(value);
+  };
   const history = useRef<HTMLDivElement>(null),
     touchY = useRef<number | null>(null);
   const previousEntries = useRef<string[] | null>(null);
@@ -57,9 +79,9 @@ export function MainStage({
     const element = history.current;
     clearDownward();
     navigatingOlder.current = false;
-    if (!element) return;
+    if (!element || committedLocked.current) return;
     if (element.scrollHeight - element.clientHeight - element.scrollTop <= 1) {
-      onExpandedChange(false);
+      requestExpanded(false);
     } else if (target instanceof Node && element.contains(target)) {
       downward.current = {
         top: element.scrollTop,
@@ -72,6 +94,10 @@ export function MainStage({
   const consumeDownward = useRef<(element: HTMLDivElement) => void>(() => {});
   useLayoutEffect(() => {
     consumeDownward.current = (element) => {
+      if (committedLocked.current) {
+        clearDownward();
+        return;
+      }
       const intent = downward.current;
       if (intent) {
         if (
@@ -87,7 +113,7 @@ export function MainStage({
             1
           ) {
             clearDownward();
-            onExpandedChange(false);
+            requestExpanded(false);
           } else expireDownward();
         }
       }
@@ -137,7 +163,10 @@ export function MainStage({
   });
   useLayoutEffect(() => {
     clearDownward();
-  }, [expanded]);
+  }, [expanded, locked]);
+  useLayoutEffect(() => {
+    touchY.current = null;
+  }, [locked]);
   const id = useId();
   useLayoutEffect(() => {
     const element = history.current;
@@ -223,9 +252,31 @@ export function MainStage({
   const setExpanded = (value: boolean) => {
     clearDownward();
     navigatingOlder.current = false;
-    onExpandedChange(value);
+    requestExpanded(value);
   };
-  const context = { expanded, setExpanded };
+  const setLocked = (value: boolean) => {
+    clearDownward();
+    touchY.current = null;
+    if (value === (pendingLock.current ?? committedLocked.current)) return;
+    // Deduplicate against the latest request, not the last commit. A reversal
+    // replaces the pending guard, but never releases a committed visible lock.
+    if (pendingLock.current === undefined) {
+      // Expire even when a controlled host declines without rerendering.
+      queueMicrotask(() => {
+        pendingLock.current = undefined;
+      });
+    }
+    pendingLock.current = value;
+    if (controlledLocked === undefined) setLocalLocked(value);
+    if (value && !requestedExpanded) requestExpanded(true);
+    onLockedChange?.(value);
+  };
+  const context: StageRenderContext = {
+    expanded,
+    setExpanded,
+    locked,
+    setLocked,
+  };
   return (
     <section
       className="spg-stage-content"
@@ -235,7 +286,7 @@ export function MainStage({
           if (event.deltaY > 0) down(event.target);
           else {
             clearDownward();
-            onExpandedChange(true);
+            requestExpanded(true);
           }
         }
       }}
@@ -252,7 +303,7 @@ export function MainStage({
           if (y < touchY.current) down(event.target);
           else {
             clearDownward();
-            onExpandedChange(true);
+            requestExpanded(true);
           }
           touchY.current = y;
         }
@@ -276,14 +327,44 @@ export function MainStage({
           <span aria-hidden="true">✦</span>
           {title}
         </span>
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={id}
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? "Collapse ↙" : "Expand ↗"}
-        </button>
+        <div className="spg-stage-actions">
+          <button
+            type="button"
+            aria-disabled={locked || undefined}
+            title={locked ? "Unlock the stage before collapsing" : undefined}
+            aria-expanded={expanded}
+            aria-controls={id}
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? "Collapse ↙" : "Expand ↗"}
+          </button>
+          <button
+            type="button"
+            className="spg-stage-lock"
+            aria-label={
+              locked ? "Unlock expanded stage" : "Lock expanded stage"
+            }
+            aria-pressed={locked}
+            title={locked ? "Unlock expanded stage" : "Lock expanded stage"}
+            onClick={() => setLocked(!locked)}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect x="5" y="10" width="14" height="11" rx="2" />
+              <path
+                d={locked ? "M8 10V6a4 4 0 0 1 8 0v4" : "M8 10V6a4 4 0 0 1 8 0"}
+              />
+            </svg>
+          </button>
+        </div>
       </header>
       <div
         className="spg-history"
@@ -338,7 +419,7 @@ export function MainStage({
             clearDownward();
             navigatingOlder.current = true;
             nearBottom.current = false;
-            onExpandedChange(true);
+            requestExpanded(true);
           }
           if (
             ["ArrowDown", "PageDown", "End"].includes(event.key) ||
