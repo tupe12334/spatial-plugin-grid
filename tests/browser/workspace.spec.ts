@@ -20,17 +20,17 @@ async function noOverflow(page: Page) {
     ),
   ).toBe(true);
 }
-test("default layout and every allowed size: inward overlays, home labels, no reflow or overflow", async ({
-  page,
-}) => {
-  await open(page);
-  const baseline = await Promise.all(
-    pluginHomes.map((home) => box(page, `[data-home="${home}"]`)),
-  );
-  const first = baseline[0]!;
-  close(first.x, 12);
-  close(first.y, 76);
-  for (const home of pluginHomes)
+for (const home of pluginHomes) {
+  test(`home ${home}, every allowed size: inward overlays, home labels, no reflow or overflow`, async ({
+    page,
+  }) => {
+    await open(page);
+    const baseline = await Promise.all(
+      pluginHomes.map((home) => box(page, `[data-home="${home}"]`)),
+    );
+    const first = baseline[0]!;
+    close(first.x, 12);
+    close(first.y, 76);
     for (const size of sizesFor(home)) {
       await page.locator(`[data-home="${home}"] select`).selectOption(size);
       const rect = geometry(home, size),
@@ -50,23 +50,74 @@ test("default layout and every allowed size: inward overlays, home labels, no re
       await noOverflow(page);
       await page.locator(`[data-home="${home}"] select`).selectOption("1x1");
     }
-  await page.screenshot({ path: "test-results/reference-workspace.png" });
-});
+    if (home === pluginHomes[pluginHomes.length - 1])
+      await page.screenshot({ path: "test-results/reference-workspace.png" });
+  });
+}
 test("main stage has intermediate geometry in BOTH directions and pinned composer", async ({
   page,
 }) => {
   await open(page);
   const base = await box(page, ".spg-stage"),
     composer = await box(page, ".spg-composer");
-  await page
-    .locator(".spg-stage-content")
-    .dispatchEvent("wheel", { deltaY: -100 });
-  await page.waitForTimeout(80);
-  const expanding = await box(page, ".spg-stage");
-  expect(expanding.height).toBeGreaterThan(base.height + 10);
-  expect(expanding.height).toBeLessThan(base.height * 2 + 11);
-  close((await box(page, ".spg-composer")).y, composer.y);
-  await page.waitForTimeout(500);
+  const sampleTransition = (deltaY: number, targetHeight: number) =>
+    page.locator(".spg-stage-content").evaluate(
+      async (content, { deltaY, targetHeight }) => {
+        const stage = document.querySelector<HTMLElement>(".spg-stage")!;
+        const composer = document.querySelector<HTMLElement>(".spg-composer")!;
+        const samples: { height: number; composerY: number }[] = [];
+        const sample = () => {
+          const rect = stage.getBoundingClientRect();
+          samples.push({
+            height: rect.height,
+            composerY: composer.getBoundingClientRect().y,
+          });
+        };
+        // Observe before dispatch: cross-process reads can miss the entire
+        // transition under emulation. Keep sampling real browser layout.
+        const observer = new ResizeObserver(sample);
+        observer.observe(stage);
+        let frame = 0;
+        let timeout = 0;
+        try {
+          await new Promise<void>((resolve, reject) => {
+            let settledFrames = 0;
+            const tick = () => {
+              sample();
+              const settled =
+                Math.abs(stage.getBoundingClientRect().height - targetHeight) <
+                  0.01 &&
+                stage.getAnimations().length === 0;
+              settledFrames = settled ? settledFrames + 1 : 0;
+              if (settledFrames === 2) resolve();
+              else frame = requestAnimationFrame(tick);
+            };
+            sample();
+            frame = requestAnimationFrame(tick);
+            timeout = window.setTimeout(
+              () => reject(new Error("Stage transition did not settle")),
+              2000,
+            );
+            content.dispatchEvent(
+              new WheelEvent("wheel", { deltaY, bubbles: true }),
+            );
+          });
+        } finally {
+          cancelAnimationFrame(frame);
+          clearTimeout(timeout);
+          observer.disconnect();
+        }
+        return samples;
+      },
+      { deltaY, targetHeight },
+    );
+  const expanding = await sampleTransition(-100, base.height * 2 + 12);
+  expect(
+    expanding.some(({ height }) =>
+      height > base.height + 10 && height < base.height * 2 + 11,
+    ),
+  ).toBe(true);
+  for (const sample of expanding) close(sample.composerY, composer.y);
   const expanded = await box(page, ".spg-stage");
   close(expanded.height, base.height * 2 + 12);
   close(expanded.y + expanded.height, base.y + base.height);
@@ -74,17 +125,18 @@ test("main stage has intermediate geometry in BOTH directions and pinned compose
     "inert",
     true,
   );
+  await noOverflow(page);
   await page.screenshot({ path: "test-results/expanded-stage.png" });
-  await page
-    .locator(".spg-stage-content")
-    .dispatchEvent("wheel", { deltaY: 100 });
-  await page.waitForTimeout(80);
-  const collapsing = await box(page, ".spg-stage");
-  expect(collapsing.height).toBeGreaterThan(base.height + 1);
-  expect(collapsing.height).toBeLessThan(expanded.height - 10);
-  close((await box(page, ".spg-composer")).y, composer.y);
-  await page.waitForTimeout(500);
-  close((await box(page, ".spg-stage")).height, base.height);
+  const collapsing = await sampleTransition(100, base.height);
+  expect(
+    collapsing.some(({ height }) =>
+      height > base.height + 1 && height < expanded.height - 10,
+    ),
+  ).toBe(true);
+  for (const sample of collapsing) close(sample.composerY, composer.y);
+  const collapsed = await box(page, ".spg-stage");
+  close(collapsed.height, base.height);
+  close(collapsed.y, base.y);
   await expect(page.locator('[data-home="22"]')).toHaveJSProperty(
     "inert",
     false,
