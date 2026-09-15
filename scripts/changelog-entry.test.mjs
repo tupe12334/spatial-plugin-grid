@@ -3,7 +3,7 @@ import { test, after } from "node:test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { changelogEntry } from "./changelog-entry.mjs";
+import { changelogEntry } from "./release-preflight.mjs";
 
 const dirs = [];
 after(() => {

@@ -2,19 +2,13 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-// Strict SemVer; build metadata is rejected because npm normalizes it away.
-const versionPattern =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?![\s\S])/;
+import semver from "semver";
 
 export function releaseGuard({ version, eventName, event, ref }) {
   if (
     typeof version !== "string" ||
-    version.length > 256 ||
-    !versionPattern.test(version) ||
-    version
-      .split("-")[0]
-      .split(".")
-      .some((part) => !Number.isSafeInteger(Number(part)))
+    semver.valid(version) !== version ||
+    version.includes("+")
   ) {
     throw new Error("Expected strict SemVer without build metadata");
   }
