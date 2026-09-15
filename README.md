@@ -17,8 +17,8 @@ pnpm pack
 import {
   SpatialPluginGrid,
   type PluginDefinition,
-} from "@tupe12334/spatial-plugin-grid";
-import "@tupe12334/spatial-plugin-grid/styles.css";
+} from "spatial-plugin-grid";
+import "spatial-plugin-grid/styles.css";
 
 const plugins: PluginDefinition[] = [
   {
@@ -160,7 +160,7 @@ OIDC cannot bootstrap this nonexistent package: its npm settings must exist befo
 
 1. Install Node 24 and pnpm 9.15.9, then run the full validation sequence below on the exact initial version (currently `0.1.0`).
 2. Inspect `npm publish --dry-run --access public --registry https://registry.npmjs.org/ --tag latest`. Authenticate locally with `npm login --registry https://registry.npmjs.org/`, then run `npm publish --access public --registry https://registry.npmjs.org/ --tag latest`, completing npm's authentication/2FA prompts. This local bootstrap does not request GitHub provenance. If bootstrapping a prerelease version instead, use `next` for both commands.
-3. In npm's settings for `@tupe12334/spatial-plugin-grid`, add a **GitHub Actions** trusted publisher with these exact fields:
+3. In npm's settings for `spatial-plugin-grid`, add a **GitHub Actions** trusted publisher with these exact fields:
 
    | Field | Value |
    | --- | --- |
