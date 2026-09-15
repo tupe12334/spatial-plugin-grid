@@ -12,6 +12,8 @@ export const stories = [
   "workspace--theme-updates",
   "workspace--cleanup",
   "workspace--plugin-failure",
+  "mainstage--locked",
+  "workspace--pinnable-stage",
   "mainstage--populated",
   "mainstage--empty",
   "mainstage--host-render-props",
@@ -19,6 +21,16 @@ export const stories = [
   "mainstage--resizing-transcript",
 ];
 export const states = [
+  {
+    story: "workspace--pinnable-stage",
+    name: "workspace-pinned-overlap",
+    action: "pin-overlap",
+  },
+  {
+    story: "workspace--pinnable-stage",
+    name: "workspace-pinned",
+    action: "pin",
+  },
   ...stories.map((story) => ({ story, name: story, action: "default" })),
   ...["11", "14", "21", "24", "31", "34"].flatMap((home) =>
     (home.startsWith("3") ? ["1x2"] : ["1x2", "2x1", "2x2"]).map((size) => ({

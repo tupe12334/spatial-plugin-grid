@@ -1,5 +1,12 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { startTransition, Suspense, useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { MainStage, SpatialPluginGrid, type PluginDefinition } from "../src";
 const disconnect = vi.fn(),
   remove = vi.fn();
@@ -471,3 +478,517 @@ it.each([false, true])(
     else expect(change).toHaveBeenCalledExactlyOnceWith(false);
   },
 );
+
+it.each([
+  "wheel",
+  "touch",
+  "ArrowDown",
+  "PageDown",
+  "End",
+  " ",
+  "Escape",
+  "Collapse",
+  "context",
+])(
+  "locked standalone rejects %s collapse and unlock leaves expanded",
+  (input) => {
+    const change = vi.fn();
+    render(
+      <MainStage
+        expanded
+        onExpandedChange={change}
+        composer={({ setExpanded }) => (
+          <button onClick={() => setExpanded(false)}>Host collapse</button>
+        )}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Lock expanded stage" }),
+    );
+    const history = screen.getByRole("log");
+    if (input === "wheel") fireEvent.wheel(history, { deltaY: 100 });
+    else if (input === "touch") {
+      fireEvent.touchStart(history, { touches: [{ clientY: 200 }] });
+      fireEvent.touchMove(history, { touches: [{ clientY: 100 }] });
+    } else if (input === "Collapse")
+      fireEvent.click(screen.getByRole("button", { name: /Collapse/ }));
+    else if (input === "context")
+      fireEvent.click(screen.getByText("Host collapse"));
+    else fireEvent.keyDown(history, { key: input });
+    expect(change).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getByRole("button", { name: /Collapse/ })
+        .getAttribute("aria-disabled"),
+    ).toBe("true");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unlock expanded stage" }),
+    );
+    expect(change).not.toHaveBeenCalled();
+    fireEvent.wheel(history, { deltaY: 100 });
+    expect(change).toHaveBeenCalledExactlyOnceWith(false);
+  },
+);
+it.each(["before lock", "while locked"])(
+  "lock transitions clear intent started %s",
+  (when) => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+      1000,
+    );
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+    const change = vi.fn();
+    render(<MainStage expanded onExpandedChange={change} />);
+    const history = screen.getByRole("log");
+    history.scrollTop = 770;
+    if (when === "before lock") fireEvent.keyDown(history, { key: "End" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Lock expanded stage" }),
+    );
+    if (when === "while locked") fireEvent.keyDown(history, { key: "End" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unlock expanded stage" }),
+    );
+    history.scrollTop = 800;
+    fireEvent.scroll(history);
+    expect(change).not.toHaveBeenCalled();
+    fireEvent.keyDown(history, { key: "End" });
+    expect(change).toHaveBeenCalledExactlyOnceWith(false);
+  },
+);
+it("pinned grid covers occupied homes and later overlapping expansions without losing focus", () => {
+  const expanded = vi.fn(),
+    locked = vi.fn();
+  render(
+    <SpatialPluginGrid
+      plugins={[
+        ...plugins,
+        ...(["22", "23"] as const).map((home) => ({
+          id: home,
+          title: home,
+          home,
+          allowedSizes: ["1x1"] as const,
+          render: () => <button>Occupied {home}</button>,
+        })),
+      ]}
+      onStageExpandedChange={expanded}
+      onStageLockedChange={locked}
+    />,
+  );
+  screen.getByText("Occupied 22").focus();
+  fireEvent.click(screen.getByRole("button", { name: "Lock expanded stage" }));
+  const stage = screen.getByRole("log").closest<HTMLElement>(".spg-stage")!;
+  expect(stage.dataset.expanded).toBe("true");
+  for (const home of ["22", "23"])
+    expect(screen.getByRole("region", { name: home }).inert).toBe(true);
+  expect(stage.contains(document.activeElement)).toBe(true);
+  fireEvent.change(screen.getByLabelText("B size"), {
+    target: { value: "2x2" },
+  });
+  const neighbor = screen.getByRole("region", { name: "B" });
+  expect(stage.inert).toBe(false);
+  expect(neighbor.inert).toBe(true);
+  expect(Number(stage.style.zIndex)).toBeGreaterThan(
+    Number(neighbor.style.zIndex),
+  );
+  expect(locked).toHaveBeenCalledExactlyOnceWith(true);
+  expect(expanded).toHaveBeenCalledExactlyOnceWith(true);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Unlock expanded stage" }),
+  );
+  expect(stage.dataset.expanded).toBe("true");
+  expect(stage.inert).toBe(true);
+  expect(neighbor.inert).toBe(false);
+  expect(document.activeElement).toBe(screen.getByLabelText("B size"));
+});
+
+it("controlled lock props imply expanded and context reports guarded controls", () => {
+  const expanded = vi.fn(),
+    locked = vi.fn();
+  const stage = (value: boolean) => (
+    <MainStage
+      expanded={false}
+      locked={value}
+      onLockedChange={locked}
+      onExpandedChange={expanded}
+      transcript={(context) => (
+        <button onClick={() => context.setExpanded(false)}>
+          Transcript collapse {String(context.locked)}{" "}
+          {String(context.expanded)}
+        </button>
+      )}
+      composer={(context) => (
+        <button onClick={() => context.setLocked(!context.locked)}>
+          Host lock
+        </button>
+      )}
+    />
+  );
+  const view = render(stage(true));
+  fireEvent.click(screen.getByText("Transcript collapse true true"));
+  fireEvent.click(screen.getByText("Host lock"));
+  expect(locked).toHaveBeenCalledExactlyOnceWith(false);
+  expect(expanded).not.toHaveBeenCalled();
+  expect(
+    screen
+      .getByRole("button", { name: "Unlock expanded stage" })
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
+  view.rerender(stage(false));
+  fireEvent.click(screen.getByText("Host lock"));
+  expect(expanded).toHaveBeenCalledExactlyOnceWith(true);
+  expect(locked).toHaveBeenLastCalledWith(true);
+});
+it("unlock then explicit collapse restores occupied panels after animation", () => {
+  vi.useFakeTimers();
+  try {
+    render(
+      <SpatialPluginGrid
+        plugins={[
+          {
+            id: "22",
+            title: "Occupied",
+            home: "22",
+            allowedSizes: ["1x1"],
+            render: () => <button>Occupant</button>,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Lock expanded stage" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unlock expanded stage" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Collapse/ }));
+    const panel = screen.getByRole("region", { name: "Occupied" });
+    expect(panel.inert).toBe(true);
+    fireEvent.transitionEnd(screen.getByRole("log").closest(".spg-stage")!, {
+      propertyName: "height",
+    });
+    // jsdom does not supply TransitionEvent.propertyName; exercise timer fallback.
+    act(() => vi.advanceTimersByTime(500));
+    expect(panel.inert).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it.each(
+  (["controlled", "uncontrolled", "grid"] as const).flatMap((mode) =>
+    [false, true].map((reverse) => ({ mode, reverse })),
+  ),
+)(
+  "$mode keeps committed lock guards during a suspended unlock (reversals: $reverse)",
+  async ({ mode, reverse }) => {
+    const change = vi.fn();
+    const lockChanges = vi.fn();
+    const suspended = vi.fn();
+    let ready = false;
+    let release = () => {};
+    const blocker = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    function Sibling({ pause }: { pause: boolean }) {
+      if (pause && !ready) {
+        suspended();
+        throw blocker;
+      }
+      return null;
+    }
+    function Host() {
+      const [locked, setLocked] = useState(false);
+      const [pause, setPause] = useState(false);
+      const composer = (context: import("../src").StageRenderContext) => (
+        <button
+          onClick={() => {
+            startTransition(() => {
+              context.setLocked(false);
+              context.setExpanded(false);
+              if (reverse) {
+                context.setLocked(true);
+                context.setExpanded(false);
+                context.setLocked(false);
+                context.setExpanded(false);
+              }
+              setPause(true);
+            });
+          }}
+        >
+          Transition unlock
+        </button>
+      );
+      return (
+        <Suspense fallback={<p>Waiting</p>}>
+          {mode === "grid" ? (
+            <SpatialPluginGrid
+              plugins={[]}
+              mainStage={{ composer }}
+              onStageExpandedChange={change}
+              onStageLockedChange={lockChanges}
+            />
+          ) : (
+            <MainStage
+              expanded
+              {...(mode === "controlled" ? { locked } : {})}
+              onLockedChange={(value) => {
+                lockChanges(value);
+                setLocked(value);
+              }}
+              onExpandedChange={change}
+              composer={composer}
+            />
+          )}
+          <Sibling pause={pause} />
+        </Suspense>
+      );
+    }
+    render(<Host />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Lock expanded stage" }),
+    );
+    change.mockClear();
+    lockChanges.mockClear();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Transition unlock"));
+    });
+    expect(lockChanges.mock.calls).toEqual(
+      reverse ? [[false], [true], [false]] : [[false]],
+    );
+    expect(suspended).toHaveBeenCalled();
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(
+      screen
+        .getByRole("button", { name: "Unlock expanded stage" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /Collapse/ }));
+    fireEvent.keyDown(screen.getByRole("log"), { key: "Escape" });
+    expect(change).not.toHaveBeenCalled();
+    await act(async () => {
+      ready = true;
+      release();
+      await blocker;
+    });
+    expect(
+      screen
+        .getByRole("button", { name: "Lock expanded stage" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(
+      screen
+        .getByRole("button", { name: /Collapse/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /Collapse/ }));
+    expect(change).toHaveBeenCalledExactlyOnceWith(false);
+  },
+);
+
+describe.each(["controlled", "uncontrolled", "grid"] as const)(
+  "%s batched lock requests",
+  (mode) => {
+    it.each(
+      [false, true].flatMap((initial) =>
+        [false, true].map((collapse) => ({ initial, collapse })),
+      ),
+    )(
+      "reverses from committed $initial (interleaved collapse: $collapse)",
+      ({ initial, collapse }) => {
+        const changes = vi.fn();
+        const locks = vi.fn();
+        function Host() {
+          const [locked, setLocked] = useState(false);
+          const [expanded, setExpanded] = useState(true);
+          const composer = (context: import("../src").StageRenderContext) => (
+            <button
+              onClick={() => {
+                context.setLocked(!initial);
+                context.setLocked(!initial);
+                if (collapse) context.setExpanded(false);
+                context.setLocked(initial);
+                context.setLocked(initial);
+                if (collapse) context.setExpanded(false);
+              }}
+            >
+              Reverse locks
+            </button>
+          );
+          return mode === "grid" ? (
+            <SpatialPluginGrid
+              plugins={[]}
+              mainStage={{ composer }}
+              onStageLockedChange={locks}
+              onStageExpandedChange={changes}
+            />
+          ) : (
+            <MainStage
+              expanded={expanded}
+              composer={composer}
+              {...(mode === "controlled" ? { locked } : {})}
+              onLockedChange={(value) => {
+                locks(value);
+                setLocked(value);
+              }}
+              onExpandedChange={(value) => {
+                changes(value);
+                setExpanded(value);
+              }}
+            />
+          );
+        }
+        render(<Host />);
+        if (mode === "grid")
+          fireEvent.click(screen.getByRole("button", { name: /Expand/ }));
+        if (initial)
+          fireEvent.click(
+            screen.getByRole("button", { name: "Lock expanded stage" }),
+          );
+        changes.mockClear();
+        locks.mockClear();
+        fireEvent.click(screen.getByText("Reverse locks"));
+        expect(locks.mock.calls).toEqual([[!initial], [initial]]);
+        expect(changes.mock.calls).toEqual(
+          !initial && collapse ? [[false]] : [],
+        );
+        expect(
+          screen
+            .getByRole("button", {
+              name: initial ? "Unlock expanded stage" : "Lock expanded stage",
+            })
+            .getAttribute("aria-pressed"),
+        ).toBe(String(initial));
+        const remainsExpanded = initial || !collapse;
+        expect(
+          screen
+            .getByRole("button", {
+              name: remainsExpanded ? /Collapse/ : /Expand/,
+            })
+            .getAttribute("aria-expanded"),
+        ).toBe(String(remainsExpanded));
+      },
+    );
+  },
+);
+
+it("controlled standalone guards batched collapse and stays expanded on unlock", () => {
+  const change = vi.fn();
+  function Host() {
+    const [expanded, setExpanded] = useState(false);
+    const [locked, setLocked] = useState(false);
+    return (
+      <MainStage
+        expanded={expanded}
+        locked={locked}
+        onExpandedChange={(value) => {
+          change(value);
+          setExpanded(value);
+        }}
+        onLockedChange={setLocked}
+        composer={(context) => (
+          <button
+            onClick={() => {
+              context.setLocked(true);
+              context.setExpanded(false);
+            }}
+          >
+            Batch standalone lock and collapse
+          </button>
+        )}
+      />
+    );
+  }
+  render(<Host />);
+  fireEvent.click(screen.getByText("Batch standalone lock and collapse"));
+  expect(change).toHaveBeenCalledExactlyOnceWith(true);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Unlock expanded stage" }),
+  );
+  expect(
+    screen
+      .getByRole("button", { name: /Collapse/ })
+      .getAttribute("aria-expanded"),
+  ).toBe("true");
+  expect(change).toHaveBeenCalledExactlyOnceWith(true);
+  fireEvent.click(screen.getByRole("button", { name: /Collapse/ }));
+  expect(change.mock.calls).toEqual([[true], [false]]);
+});
+
+it.each([false, true])(
+  "declined controlled lock allows later collapse (rerender: %s)",
+  async (rerender) => {
+    const change = vi.fn();
+    const stage = (
+      <MainStage
+        expanded
+        locked={false}
+        onExpandedChange={change}
+        composer={({ setLocked, setExpanded }) => (
+          <button
+            onClick={() => {
+              setLocked(true);
+              setExpanded(false);
+            }}
+          >
+            Declined batch lock and collapse
+          </button>
+        )}
+      />
+    );
+    const view = render(stage);
+    fireEvent.click(screen.getByText("Declined batch lock and collapse"));
+    expect(change).not.toHaveBeenCalled();
+    if (rerender) {
+      view.rerender(
+        <MainStage expanded locked={false} onExpandedChange={change} />,
+      );
+    } else {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+    expect(
+      screen
+        .getByRole("button", { name: "Lock expanded stage" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: /Collapse/ }));
+    expect(change).toHaveBeenCalledExactlyOnceWith(false);
+  },
+);
+
+it("grid guards batched and retained render-context collapse requests", () => {
+  const expanded = vi.fn(),
+    locked = vi.fn();
+  let staleCollapse: (() => void) | undefined;
+  render(
+    <SpatialPluginGrid
+      plugins={[]}
+      onStageExpandedChange={expanded}
+      onStageLockedChange={locked}
+      mainStage={{
+        composer: ({ setLocked, setExpanded }) => {
+          staleCollapse ??= () => setExpanded(false);
+          return (
+            <button
+              onClick={() => {
+                setLocked(true);
+                setExpanded(false);
+              }}
+            >
+              Batch lock and collapse
+            </button>
+          );
+        },
+      }}
+    />,
+  );
+  fireEvent.click(screen.getByText("Batch lock and collapse"));
+  act(() => staleCollapse!());
+  expect(
+    screen.getByRole("log").closest<HTMLElement>(".spg-stage")!.dataset
+      .expanded,
+  ).toBe("true");
+  expect(expanded).toHaveBeenCalledExactlyOnceWith(true);
+  expect(locked).toHaveBeenCalledExactlyOnceWith(true);
+});

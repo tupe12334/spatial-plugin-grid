@@ -269,3 +269,22 @@
     font-size: 14px;
   }
 }
+
+.spg-stage-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.spg-stage-lock svg {
+  display: block;
+}
+.spg-stage-header button[aria-pressed="true"] {
+  color: var(--spg-accent);
+  background: var(--spg-control);
+}
+.spg-stage-header button[aria-disabled="true"] {
+  color: var(--spg-muted);
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -32,7 +32,7 @@ try {
     );
     writeFileSync(
       join(temporary, "index.tsx"),
-      `import {SpatialPluginGrid, MainStage, geometry, type PluginDefinition} from '@tupe12334/spatial-plugin-grid';\nimport '@tupe12334/spatial-plugin-grid/styles.css';\nconst plugins: PluginDefinition[] = [{id:'consumer',title:'Consumer',home:'11',allowedSizes:['1x1'],render:({size})=><p>{size}</p>}];\nexport const app=<SpatialPluginGrid plugins={plugins}/>;\nexport const stage=<MainStage expanded={false} onExpandedChange={()=>{}}/>;\nimport {createRoot} from 'react-dom/client';\nconst root = document.getElementById('root');\nif (root) createRoot(root).render(app);\nconsole.log(geometry('34','1x2'));`,
+      `import {SpatialPluginGrid, MainStage, geometry, type PluginDefinition} from '@tupe12334/spatial-plugin-grid';\nimport '@tupe12334/spatial-plugin-grid/styles.css';\nconst plugins: PluginDefinition[] = [{id:'consumer',title:'Consumer',home:'11',allowedSizes:['1x1'],render:({size})=><p>{size}</p>}];\nexport const app=<SpatialPluginGrid plugins={plugins} onStageLockedChange={(locked:boolean)=>{}} mainStage={{composer:({locked,setLocked,setExpanded})=><button onClick={()=>{setLocked(!locked);setExpanded(false);}}>Lock</button>}}/>;\nexport const stage=<MainStage expanded={false} onExpandedChange={()=>{}} locked={true} onLockedChange={(locked:boolean)=>{}} transcript={({locked,expanded,setLocked})=><button onClick={()=>setLocked(false)}>{String(locked && expanded)}</button>}/>;\nimport {createRoot} from 'react-dom/client';\nconst root = document.getElementById('root');\nif (root) createRoot(root).render(app);\nconsole.log(geometry('34','1x2'));`,
     );
     writeFileSync(
       join(temporary, "index.html"),

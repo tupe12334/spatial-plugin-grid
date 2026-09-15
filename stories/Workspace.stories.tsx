@@ -180,3 +180,30 @@ export function StageExample({ empty = false }: { empty?: boolean }) {
     </div>
   );
 }
+
+export const PinnableStage: Story = {
+  args: {
+    navbar: (
+      <span>
+        Lock the conversation, then expand plugin 11 or 14 over its occupied
+        neighbors.
+      </span>
+    ),
+    mainStage: {
+      transcript: Array.from({ length: 30 }, (_, index) => ({
+        id: String(index),
+        author: "AGENT",
+        content: `Message ${index + 1} · Read older messages while the stage stays pinned.`,
+      })),
+      composer: ({ locked, setLocked, setExpanded }) => (
+        <>
+          <Composer />
+          <button onClick={() => setLocked(!locked)}>
+            Host {locked ? "unlock" : "lock"}
+          </button>
+          <button onClick={() => setExpanded(false)}>Host collapse</button>
+        </>
+      ),
+    },
+  },
+};
