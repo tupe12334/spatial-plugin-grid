@@ -23,6 +23,9 @@ jobs:
       - run: pnpm test:release
       - run: pnpm test:release-tooling
       - run: pnpm validate
+      - uses: tupe12334/linecheck@main
+        with:
+          args: "--status"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

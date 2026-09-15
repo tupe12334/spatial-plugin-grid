@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/tupe12334/linecheck/main/schema/linecheck.schema.json
+
+rules:
+  - pattern: "tests/**/*.{ts,tsx}"
+    warn: 500
+    error: 700
+  - pattern: "**/*.{ts,tsx}"
+    warn: 200
+    error: 400
+
+exclude:
+  - "dist/**"
+  - "node_modules/**"
+  - "storybook-static/**"
+  - "pnpm-lock.yaml"
