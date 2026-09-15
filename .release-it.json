@@ -1,0 +1,26 @@
+{
+  "increment": false,
+  "git": {
+    "requireCleanWorkingDir": true,
+    "requireUpstream": true,
+    "requireBranch": "main",
+    "commit": false,
+    "tag": true,
+    "tagName": "v${version}",
+    "tagAnnotation": "Release v${version}",
+    "push": true,
+    "changelog": "node scripts/changelog-entry.mjs"
+  },
+  "npm": {
+    "publish": false
+  },
+  "github": {
+    "release": true,
+    "releaseName": "v${version}",
+    "releaseNotes": "node scripts/changelog-entry.mjs",
+    "web": false
+  },
+  "hooks": {
+    "before:init": "node scripts/release-preflight.mjs"
+  }
+}
