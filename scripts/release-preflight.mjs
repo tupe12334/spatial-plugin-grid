@@ -9,7 +9,10 @@ import { changelogEntry } from "./changelog-entry.mjs";
 // must never run against an unreleased changeset, a stale main, a
 // changelog missing the current version's entry, or a tag that already
 // exists for it.
-export function releasePreflight(cwd = process.cwd()) {
+export function releasePreflight(cwd = process.cwd(), env = process.env) {
+  if (!env.GITHUB_TOKEN?.trim())
+    throw new Error("GITHUB_TOKEN is required before creating a release tag.");
+
   const git = (args) =>
     execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 
@@ -22,6 +25,11 @@ export function releasePreflight(cwd = process.cwd()) {
   if (pending.length > 0)
     throw new Error(
       `Pending changesets found (${pending.join(", ")}); run "pnpm changeset version" and merge the version PR before releasing.`,
+    );
+
+  if (git(["status", "--porcelain=v1", "--untracked-files=all"]))
+    throw new Error(
+      "Release requires a clean working tree, including staged, unstaged and untracked files.",
     );
 
   const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);

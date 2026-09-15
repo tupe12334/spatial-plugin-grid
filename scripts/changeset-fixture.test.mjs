@@ -20,10 +20,25 @@ import { writeChangeset } from "@changesets/write";
 // touches this repository's own package.json, CHANGELOG.md, or .changeset/.
 
 const repoRoot = resolve(import.meta.dirname, "..");
-const changesetCli = resolve(
-  repoRoot,
-  "node_modules/@changesets/cli/bin.js",
-);
+const changesetCli = resolve(repoRoot, "node_modules/@changesets/cli/bin.js");
+const realPackageJsonPath = resolve(repoRoot, "package.json");
+const realChangelogPath = resolve(repoRoot, "CHANGELOG.md");
+// Snapshot before any fixture runs, not a hardcoded expected version: this
+// repo's own version/changelog legitimately change once a real Changesets
+// version PR merges, so the "no mutation" check below must compare against
+// whatever was actually on disk, not bake in "0.1.0" forever.
+const realPackageJsonBefore = readFileSync(realPackageJsonPath, "utf8");
+const realChangelogBefore = existsSync(realChangelogPath)
+  ? readFileSync(realChangelogPath, "utf8")
+  : null;
+
+function changesetSnapshot() {
+  const dir = resolve(repoRoot, ".changeset");
+  return readdirSync(dir)
+    .sort()
+    .map((name) => [name, readFileSync(join(dir, name), "utf8")]);
+}
+const realChangesetsBefore = changesetSnapshot();
 
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "changeset-fixture-"));
@@ -35,7 +50,12 @@ function fixture() {
   writeFileSync(
     join(dir, "package.json"),
     JSON.stringify(
-      { name: "fixture-pkg", version: "1.0.0", license: "MIT" },
+      {
+        name: "fixture-pkg",
+        version: "1.0.0",
+        license: "MIT",
+        scripts: { version: `node "${changesetCli}" version` },
+      },
       null,
       2,
     ),
@@ -105,7 +125,7 @@ test("real writeChangeset + status + version bump and generate a changelog", asy
   assert.equal(pending.status, 0);
   assert.match(pending.output, /fixture-pkg/);
 
-  execFileSync(process.execPath, [changesetCli, "version"], { cwd: dir });
+  execFileSync("pnpm", ["run", "version"], { cwd: dir });
 
   const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
   assert.equal(pkg.version, "1.1.0");
@@ -121,10 +141,61 @@ test("real writeChangeset + status + version bump and generate a changelog", asy
   assert.equal(remaining.length, 0);
 });
 
-test("fixture runs never mutate this repository's own release files", () => {
-  const realPkg = JSON.parse(
-    readFileSync(resolve(repoRoot, "package.json"), "utf8"),
+test("a second version cycle on an already-versioned fixture bumps again and appends to the changelog", async () => {
+  // Mirrors this repo's real future: a fixture that already went through
+  // one version() call (like a repo whose 0.1.0 -> 0.2.0 version PR already
+  // merged) must still accept a new changeset and version cleanly.
+  const dir = makeFixture();
+  await writeChangeset(
+    {
+      summary: "First release entry",
+      releases: [{ name: "fixture-pkg", type: "minor" }],
+    },
+    dir,
   );
-  assert.equal(realPkg.version, "0.1.0");
-  assert.ok(!existsSync(resolve(repoRoot, "CHANGELOG.md")));
+  execFileSync("pnpm", ["run", "version"], { cwd: dir });
+  const firstPkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+  assert.equal(firstPkg.version, "1.1.0");
+
+  await writeChangeset(
+    {
+      summary: "Second release entry",
+      releases: [{ name: "fixture-pkg", type: "patch" }],
+    },
+    dir,
+  );
+  const secondPending = status(dir);
+  assert.equal(secondPending.status, 0);
+
+  execFileSync("pnpm", ["run", "version"], { cwd: dir });
+
+  const secondPkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+  assert.equal(secondPkg.version, "1.1.1");
+
+  const changelog = readFileSync(join(dir, "CHANGELOG.md"), "utf8");
+  assert.match(changelog, /## 1\.1\.1/);
+  assert.match(changelog, /Second release entry/);
+  assert.match(changelog, /## 1\.1\.0/);
+  assert.match(changelog, /First release entry/);
+
+  const remaining = readdirSync(join(dir, ".changeset")).filter(
+    (name) => name.endsWith(".md") && name !== "README.md",
+  );
+  assert.equal(remaining.length, 0);
+});
+
+test("fixture runs never mutate this repository's own release files", () => {
+  assert.deepEqual(changesetSnapshot(), realChangesetsBefore);
+  assert.equal(
+    readFileSync(realPackageJsonPath, "utf8"),
+    realPackageJsonBefore,
+    "this repo's package.json must be byte-for-byte unchanged",
+  );
+  assert.equal(
+    existsSync(realChangelogPath)
+      ? readFileSync(realChangelogPath, "utf8")
+      : null,
+    realChangelogBefore,
+    "this repo's CHANGELOG.md must be byte-for-byte unchanged (or still absent)",
+  );
 });

@@ -31,7 +31,7 @@
     "test:e2e": "playwright test",
     "test:pack": "node scripts/pack-consumer.mjs",
     "test:release": "node --test scripts/release-guard.test.mjs",
-    "test:release-tooling": "node --test scripts/commitlint.test.mjs scripts/changelog-entry.test.mjs scripts/changeset-fixture.test.mjs scripts/release-preflight.test.mjs scripts/release-it-dry-run.test.mjs",
+    "test:release-tooling": "node --test scripts/input-guard.test.mjs scripts/commitlint.test.mjs scripts/changelog-entry.test.mjs scripts/changeset-fixture.test.mjs scripts/release-preflight.test.mjs scripts/release-it-dry-run.test.mjs",
     "prepare": "husky",
     "changeset": "changeset",
     "version": "changeset version",

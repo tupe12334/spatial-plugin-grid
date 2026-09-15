@@ -11,7 +11,7 @@ function lint(message) {
       [
         "node_modules/@commitlint/cli/cli.js",
         "--config",
-        "commitlint.config.js",
+        "commitlint.config.mjs",
       ],
       { input: message, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
     );

@@ -17,7 +17,24 @@ export function checkPush(input, expectedHead = head()) {
       throw new Error("Invalid Git pre-push input; expected ref/SHA pairs.");
     const [ref, sha] = fields;
     if (/^0+$/.test(sha)) continue; // Deletions have no source to validate.
-    if (sha !== expectedHead)
+    let commit = sha;
+    if (ref.startsWith("refs/tags/")) {
+      try {
+        commit = execFileSync(
+          "git",
+          ["rev-parse", "--verify", `${sha}^{commit}`],
+          {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        ).trim();
+      } catch {
+        throw new Error(
+          "Pre-push guard: tag source must resolve to a known commit.",
+        );
+      }
+    }
+    if (commit !== expectedHead)
       throw new Error(
         `Pre-push guard: ${ref} (${sha}) is not checkout HEAD (${expectedHead}). Check out the commit you intend to push, commit or stash validation inputs, then push HEAD. Push other commits separately from their own checkout.`,
       );

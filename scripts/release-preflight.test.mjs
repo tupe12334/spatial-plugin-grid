@@ -52,7 +52,9 @@ after(() => {
 test("passes for a clean, up-to-date main with a matching changelog entry and no tag", () => {
   const { dir, bareDir } = baseFixture();
   cleanup.push(dir, bareDir);
-  assert.doesNotThrow(() => releasePreflight(dir));
+  assert.doesNotThrow(() =>
+    releasePreflight(dir, { GITHUB_TOKEN: "fixture-only" }),
+  );
 });
 
 test("rejects a pending changeset", () => {
@@ -62,14 +64,20 @@ test("rejects a pending changeset", () => {
     join(dir, ".changeset", "brave-lions-fly.md"),
     '---\n"fixture-pkg": minor\n---\n\nPending change\n',
   );
-  assert.throws(() => releasePreflight(dir), /Pending changesets/);
+  assert.throws(
+    () => releasePreflight(dir, { GITHUB_TOKEN: "fixture-only" }),
+    /Pending changesets/,
+  );
 });
 
 test("rejects a branch other than main", () => {
   const { dir, bareDir } = baseFixture();
   cleanup.push(dir, bareDir);
   git(["checkout", "-q", "-b", "feature"], dir);
-  assert.throws(() => releasePreflight(dir), /main/);
+  assert.throws(
+    () => releasePreflight(dir, { GITHUB_TOKEN: "fixture-only" }),
+    /main/,
+  );
 });
 
 test("rejects a local main that is behind origin/main", () => {
@@ -86,21 +94,36 @@ test("rejects a local main that is behind origin/main", () => {
   git(["push", "-q", "origin", "main"], clone);
   cleanup.push(clone);
 
-  assert.throws(() => releasePreflight(dir), /not up to date/);
+  assert.throws(
+    () => releasePreflight(dir, { GITHUB_TOKEN: "fixture-only" }),
+    /not up to date/,
+  );
 });
 
 test("rejects a missing changelog entry for the current version", () => {
   const { dir, bareDir } = baseFixture();
   cleanup.push(dir, bareDir);
-  writeFileSync(join(dir, "CHANGELOG.md"), "# fixture-pkg\n\n## 1.1.0\n\n- Old\n");
-  assert.throws(() => releasePreflight(dir));
+  writeFileSync(
+    join(dir, "CHANGELOG.md"),
+    "# fixture-pkg\n\n## 1.1.0\n\n- Old\n",
+  );
+  git(["add", "-A"], dir);
+  git(["commit", "-qm", "chore: old changelog"], dir);
+  git(["push", "-q", "origin", "main"], dir);
+  assert.throws(
+    () => releasePreflight(dir, { GITHUB_TOKEN: "fixture-only" }),
+    /changelog|CHANGELOG|entry/,
+  );
 });
 
 test("rejects a version whose tag already exists locally", () => {
   const { dir, bareDir } = baseFixture();
   cleanup.push(dir, bareDir);
   git(["tag", "v1.2.0"], dir);
-  assert.throws(() => releasePreflight(dir), /already exists/);
+  assert.throws(
+    () => releasePreflight(dir, { GITHUB_TOKEN: "fixture-only" }),
+    /already exists/,
+  );
 });
 
 test("rejects a version whose tag already exists on origin", () => {
@@ -114,5 +137,41 @@ test("rejects a version whose tag already exists on origin", () => {
   git(["push", "-q", "origin", "v1.2.0"], clone);
   cleanup.push(clone);
 
-  assert.throws(() => releasePreflight(dir), /already exists/);
+  assert.throws(
+    () => releasePreflight(dir, { GITHUB_TOKEN: "fixture-only" }),
+    /already exists/,
+  );
 });
+
+test("rejects missing credentials before any Git operation", () => {
+  assert.throws(
+    () => releasePreflight("/nonexistent", {}),
+    /GITHUB_TOKEN is required/,
+  );
+});
+
+for (const state of [
+  "staged",
+  "unstaged",
+  "untracked",
+  "untracked changelog",
+]) {
+  test(`rejects ${state} release inputs`, () => {
+    const { dir, bareDir } = baseFixture();
+    cleanup.push(dir, bareDir);
+    if (state === "untracked changelog") {
+      git(["rm", "--cached", "CHANGELOG.md"], dir);
+      git(["commit", "-qm", "chore: remove changelog"], dir);
+    } else {
+      writeFileSync(
+        join(dir, state === "untracked" ? "extra.md" : "CHANGELOG.md"),
+        "dirty",
+      );
+      if (state === "staged") git(["add", "-A"], dir);
+    }
+    assert.throws(
+      () => releasePreflight(dir, { GITHUB_TOKEN: "fixture-only" }),
+      /clean working tree/,
+    );
+  });
+}

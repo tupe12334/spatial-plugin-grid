@@ -70,9 +70,10 @@ function makeFixture() {
     join(dir, "scripts/changelog-entry.mjs"),
   );
   cpSync(
-    resolve(repoRoot, ".release-it.json"),
-    join(dir, ".release-it.json"),
+    resolve(repoRoot, "scripts/release-preflight.mjs"),
+    join(dir, "scripts/release-preflight.mjs"),
   );
+  cpSync(resolve(repoRoot, ".release-it.json"), join(dir, ".release-it.json"));
 
   git(["add", "-A"], dir);
   git(["commit", "-q", "-m", "feat: fixture release entry"], dir);
@@ -97,7 +98,7 @@ function dryRun(dir) {
   return execFileSync(process.execPath, [releaseItBin, "--dry-run", "--ci"], {
     cwd: dir,
     encoding: "utf8",
-    env: { ...process.env, CI: "true" },
+    env: { ...process.env, GITHUB_TOKEN: "", CI: "true" },
   });
 }
 
@@ -145,4 +146,49 @@ test("running release-it --dry-run twice stays idempotent (no double bump, no ac
   const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
   assert.equal(pkg.version, "1.2.0");
   assert.equal(git(["tag", "--list"], dir), "");
+});
+
+test("real release-it refuses missing credentials before creating tags", () => {
+  const { dir, bareDir } = makeFixture();
+  cleanup.push(dir, bareDir);
+  assert.throws(
+    () =>
+      execFileSync(process.execPath, [releaseItBin, "--ci"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...process.env, GITHUB_TOKEN: "" },
+        stdio: "pipe",
+      }),
+    (error) => /GITHUB_TOKEN is required/.test(error.stdout + error.stderr),
+  );
+  assert.equal(git(["tag", "--list"], dir), "");
+  assert.equal(git(["tag", "--list"], bareDir), "");
+});
+
+test("installed GitHub plugin marks existing prerelease versions correctly", async () => {
+  const { default: GitHub } = await import(
+    "../node_modules/release-it/lib/plugin/github/GitHub.js"
+  );
+  for (const [version, prerelease] of [
+    ["1.2.0", false],
+    ["1.2.0-rc.1", true],
+  ]) {
+    const plugin = new GitHub({
+      namespace: "github",
+      options: { github: { releaseName: "v${version}" } },
+      container: {
+        prompt: { register() {} },
+        config: { getContext: () => ({ version, tagName: `v${version}` }) },
+      },
+    });
+    plugin.setContext({
+      version,
+      repo: { owner: "fixture", project: "fixture" },
+      releaseNotes: "Changesets notes",
+    });
+    const options = await plugin.getOctokitReleaseOptions();
+    assert.equal(options.prerelease, prerelease);
+    assert.equal(options.tag_name, `v${version}`);
+    assert.equal(options.body, "Changesets notes");
+  }
 });
