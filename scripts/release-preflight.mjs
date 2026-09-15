@@ -1,67 +1,59 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { changelogEntry } from "./changelog-entry.mjs";
 
-// Local preconditions release-it's own git checks don't cover: this repo
-// versions and changelogs exclusively through Changesets, so a release
-// must never run against an unreleased changeset, a stale main, a
-// changelog missing the current version's entry, or a tag that already
-// exists for it.
+// Changesets owns the notes; match an entire heading, never a version prefix.
+export function changelogEntry(version, path = "CHANGELOG.md") {
+  const sections = readFileSync(path, "utf8").split(/^## /m).slice(1);
+  const section = sections.find(
+    (text) => text.split("\n", 1)[0].trim() === version,
+  );
+  if (!section) throw new Error(`CHANGELOG.md has no "## ${version}" section`);
+  const entry = section.slice(section.indexOf("\n") + 1).trim();
+  if (!entry || !section.includes("\n"))
+    throw new Error(`CHANGELOG.md section "## ${version}" is empty`);
+  return entry;
+}
+
 export function releasePreflight(cwd = process.cwd(), env = process.env) {
+  // release-it otherwise falls back to a browser even with github.web=false.
   if (!env.GITHUB_TOKEN?.trim())
     throw new Error("GITHUB_TOKEN is required before creating a release tag.");
-
-  const git = (args) =>
+  const git = (...args) =>
     execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
-
-  const changesetDir = resolve(cwd, ".changeset");
-  const pending = existsSync(changesetDir)
-    ? readdirSync(changesetDir).filter(
-        (name) => name.endsWith(".md") && name !== "README.md",
-      )
-    : [];
-  if (pending.length > 0)
+  if (
+    readdirSync(resolve(cwd, ".changeset")).some(
+      (name) => name.endsWith(".md") && name !== "README.md",
+    )
+  )
     throw new Error(
-      `Pending changesets found (${pending.join(", ")}); run "pnpm changeset version" and merge the version PR before releasing.`,
+      "Pending changesets; merge the version PR before releasing.",
     );
-
-  if (git(["status", "--porcelain=v1", "--untracked-files=all"]))
+  // Native release-it checks the branch and tracked changes, not untracked files.
+  if (git("ls-files", "--others", "--exclude-standard"))
     throw new Error(
-      "Release requires a clean working tree, including staged, unstaged and untracked files.",
+      "Release requires a clean working tree (untracked files found).",
     );
-
-  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  if (branch !== "main")
-    throw new Error(`Releases run from main, not "${branch}".`);
-  git(["fetch", "origin", "main"]);
-  const local = git(["rev-parse", "HEAD"]);
-  const remote = git(["rev-parse", "origin/main"]);
-  if (local !== remote)
-    throw new Error(
-      "Local main is not up to date with origin/main; pull or push first.",
-    );
-
+  git("fetch", "origin", "main");
+  if (git("rev-parse", "HEAD") !== git("rev-parse", "origin/main"))
+    throw new Error("Local main is not up to date with origin/main.");
   const { version } = JSON.parse(
     readFileSync(resolve(cwd, "package.json"), "utf8"),
   );
   changelogEntry(version, resolve(cwd, "CHANGELOG.md"));
-
-  const tag = `v${version}`;
-  const tagExists =
-    git(["tag", "--list", tag]) !== "" ||
-    git(["ls-remote", "--tags", "origin", tag]).trim() !== "";
-  if (tagExists)
+  // release-it permits reusing the latest tag; this workflow requires a new one.
+  if (
+    git("tag", "--list", `v${version}`) ||
+    git("ls-remote", "--tags", "origin", `v${version}`)
+  )
     throw new Error(
-      `Tag ${tag} already exists; bump the version with a changeset before releasing again.`,
+      `Tag v${version} already exists; version with Changesets first.`,
     );
-
-  console.log(`Release preflight: ${tag} on main, up to date, no tag yet.`);
 }
 
-if (
-  process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-)
-  releasePreflight();
+if (import.meta.main) {
+  if (process.argv[2] === "--notes") {
+    const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+    console.log(changelogEntry(version));
+  } else releasePreflight();
+}

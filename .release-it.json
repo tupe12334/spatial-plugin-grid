@@ -9,7 +9,7 @@
     "tagName": "v${version}",
     "tagAnnotation": "Release v${version}",
     "push": true,
-    "changelog": "node scripts/changelog-entry.mjs"
+    "changelog": "node scripts/release-preflight.mjs --notes"
   },
   "npm": {
     "publish": false
@@ -17,7 +17,7 @@
   "github": {
     "release": true,
     "releaseName": "v${version}",
-    "releaseNotes": "node scripts/changelog-entry.mjs",
+    "releaseNotes": "node scripts/release-preflight.mjs --notes",
     "web": false
   },
   "hooks": {

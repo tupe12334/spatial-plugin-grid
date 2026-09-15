@@ -11,9 +11,6 @@ importers:
       '@changesets/cli':
         specifier: 3.0.3
         version: 3.0.3
-      '@changesets/write':
-        specifier: 1.0.1
-        version: 1.0.1
       '@commitlint/cli':
         specifier: 21.2.2
         version: 21.2.2(@types/node@24.13.4)(conventional-commits-parser@7.1.2)(typescript@5.7.3)
@@ -71,6 +68,9 @@ importers:
       release-it:
         specifier: 21.0.3
         version: 21.0.3(@types/node@24.13.4)
+      semver:
+        specifier: 7.7.4
+        version: 7.7.4
       storybook:
         specifier: 10.5.4
         version: 10.5.4(@types/react@18.3.31)(prettier@3.6.2)(react@18.3.1)
@@ -2756,6 +2756,11 @@ packages:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
     hasBin: true
 
+  semver@7.7.4:
+    resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
+    engines: {node: '>=10'}
+    hasBin: true
+
   semver@7.8.5:
     resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
     engines: {node: '>=10'}
@@ -3443,7 +3448,7 @@ snapshots:
   '@commitlint/is-ignored@21.2.2':
     dependencies:
       '@commitlint/types': 21.2.0
-      semver: 7.8.5
+      semver: 7.7.4
 
   '@commitlint/lint@21.2.2':
     dependencies:
@@ -3515,7 +3520,7 @@ snapshots:
     dependencies:
       '@simple-libs/child-process-utils': 2.0.0
       '@simple-libs/stream-utils': 2.0.0
-      semver: 7.8.5
+      semver: 7.7.4
     optionalDependencies:
       conventional-commits-parser: 7.1.2
 
@@ -4504,7 +4509,7 @@ snapshots:
       '@typescript-eslint/visitor-keys': 8.70.0
       debug: 4.4.3
       minimatch: 10.2.6
-      semver: 7.8.5
+      semver: 7.7.4
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@5.7.3)
       typescript: 5.7.3
@@ -5780,6 +5785,8 @@ snapshots:
 
   semver@6.3.1: {}
 
+  semver@7.7.4: {}
+
   semver@7.8.5: {}
 
   shebang-command@2.0.0:
@@ -5837,7 +5844,7 @@ snapshots:
       oxc-parser: 0.127.0
       oxc-resolver: 11.24.2
       recast: 0.23.21
-      semver: 7.8.5
+      semver: 7.7.4
       use-sync-external-store: 1.7.0(react@18.3.1)
       ws: 8.21.3
     optionalDependencies:
