@@ -1,9 +1,43 @@
 export { SpatialPluginGrid } from "./SpatialPluginGrid";
+export type { SpatialPluginGridProps } from "./SpatialPluginGrid";
+export {
+  defineGrid,
+  definePlugin,
+  defineWorkspace,
+  defaultGrid,
+  validatePlacement,
+  validatePlugin,
+  rectangleAt,
+  intersects,
+} from "./grid/contract";
 export type {
-  SpatialPluginGridProps,
+  Alignment,
+  Axis,
+  Coordinate,
+  Dimension,
+  Footprint,
+  GridDefinition,
+  Placement,
+  PluginContext,
   PluginDefinition,
-  PluginRenderContext,
-} from "./SpatialPluginGrid";
+  PluginInstance,
+  Rectangle,
+  Region,
+  CompatibleAnchor,
+  States,
+  StateName,
+  Transitions,
+  ValidAnchor,
+  Workspace,
+} from "./grid/types";
+export { createAgentPlugin } from "./plugins/agent/createAgentPlugin";
+export type { AgentPluginOptions } from "./plugins/agent/createAgentPlugin";
+export { AgentWorkspace } from "./presets/AgentWorkspace";
+export type {
+  AgentWorkspaceProps,
+  GroupedPluginDefinition,
+  GroupedPluginContext,
+} from "./presets/AgentWorkspace";
 export { MainStage } from "./MainStage";
 export type {
   MainStageProps,
@@ -13,16 +47,15 @@ export type {
 export {
   agentWorkspace,
   geometry,
-  intersects,
   pluginHomes,
   sizesFor,
   validateRegistry,
-} from "./layout";
+} from "./presets/groupedLayout";
 export type {
   LayoutPreset,
   PluginHome,
   PluginSize,
   Rect,
   RegistryEntry,
-} from "./layout";
+} from "./presets/groupedLayout";
 import "./styles.css";

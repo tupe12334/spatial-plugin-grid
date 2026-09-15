@@ -25,6 +25,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:types": "tsc -p tsconfig.type-tests.json",
     "build": "vite build && tsc -p tsconfig.build.json",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
@@ -82,5 +83,8 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
   }
 }

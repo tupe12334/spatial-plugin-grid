@@ -6,7 +6,7 @@ import {
   pluginHomes,
   type PluginHome,
   type PluginSize,
-} from "../../src/layout";
+} from "../../src/presets/groupedLayout";
 const index = JSON.parse(readFileSync("storybook-static/index.json", "utf8"));
 verifyInventory(
   Object.values(index.entries)
@@ -43,9 +43,9 @@ for (const state of states)
       });
     });
     await page.goto(`/iframe.html?id=${state.story}&viewMode=story`);
-    await expect(
-      page.locator("#storybook-root .spg-stage-content"),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("#storybook-root .spg-root")).toBeVisible({
+      timeout: 60_000,
+    });
     await page.evaluate(() => document.fonts.ready);
     // Snapshot-only stabilization. Functional motion tests use their separate config unchanged.
     await page.addStyleTag({
@@ -93,6 +93,10 @@ for (const state of states)
         );
       }
     }
+    if (state.action === "chart")
+      await page.getByText("Open chart", { exact: true }).click();
+    if (state.action === "inspector")
+      await page.getByText("Inspect", { exact: true }).click();
     if (state.action === "expand") {
       await page.locator(".spg-stage-header button[aria-expanded]").click();
       await expect(

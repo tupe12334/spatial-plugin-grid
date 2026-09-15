@@ -16,6 +16,7 @@ export function validate(expectedHead = head()) {
     for (const script of [
       "lint",
       "typecheck",
+      "test:types",
       "test",
       "build",
       "test:pack",
