@@ -65,7 +65,7 @@ test("main-stage appearance follows all-state geometry: rejects row one and perm
     await drag(page, "Inspector", 1, column);
     await expect(panel(page, "inspector")).toHaveAttribute("data-home", "34");
   }
-  await drag(page, "Inspector", 2, 3);
+  await drag(page, "Inspector", 2, 2);
   await expect(panel(page, "inspector")).toHaveAttribute("data-home", "23");
 });
 test("keyboard movement and Escape cancellation", async ({ page }) => {
@@ -137,3 +137,49 @@ test("pointer Escape cancels and right-button input does not begin a move", asyn
   await page.mouse.up();
   await expect(panel(page, "status")).toHaveAttribute("data-home", "14");
 });
+
+for (const expanded of [false, true]) {
+  test(`leftmost cells remain reachable when dragging ${expanded ? "2x2" : "1x2"} by its left handle`, async ({
+    page,
+  }) => {
+    await open(page);
+    const handle = page.getByRole("button", {
+      name: "Move Inspector",
+      exact: true,
+    });
+    if (expanded)
+      await page.getByRole("button", { name: "Inspect", exact: true }).click();
+    await expect(handle).toBeEnabled();
+    await handle.hover();
+    await page.mouse.down();
+    // Grab is in the top-left occupied cell, not the bottom-right anchor.
+    const point = await cell(page, expanded ? 2 : 3, 1);
+    await page.mouse.move(point.x, point.y, { steps: 6 });
+    const preview = page.locator(
+      '[data-drop-target="32"][data-drop-hover="true"]',
+    );
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveCSS("grid-column", "1 / span 2");
+    await expect(preview).toHaveCSS(
+      "grid-row",
+      expanded ? "2 / span 2" : "3 / span 1",
+    );
+    const bounds = await preview.boundingBox();
+    await page.mouse.up();
+    await expect(panel(page, "inspector")).toHaveAttribute("data-home", "32");
+    if (!bounds) throw new Error("Missing preview bounds");
+    await expect
+      .poll(async () => {
+        const actual = await panel(page, "inspector").boundingBox();
+        return actual
+          ? Math.max(
+              Math.abs(actual.x - bounds.x),
+              Math.abs(actual.y - bounds.y),
+              Math.abs(actual.width - bounds.width),
+              Math.abs(actual.height - bounds.height),
+            )
+          : Infinity;
+      })
+      .toBeLessThan(1);
+  });
+}

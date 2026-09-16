@@ -19,27 +19,30 @@ const closeTo = async (
     })
     .toBeLessThan(1.5);
 };
-const geometry = (page: Page, expanded: boolean) =>
-  page.locator(".spg-grid").evaluate((element, large) => {
-    const grid = element.getBoundingClientRect(),
-      css = getComputedStyle(element),
-      padding = parseFloat(css.paddingLeft),
-      gap = parseFloat(css.gap);
-    const width = (grid.width - 2 * padding - 3 * gap) / 4;
-    const height = (grid.height - 2 * padding - 2 * gap) / 3;
-    return {
-      target: {
-        x: grid.x + padding + 2 * (width + gap) + width / 2,
-        y: grid.y + padding + height + gap + height / 2,
-      },
-      footprint: {
-        x: grid.x + padding + width + gap,
-        y: grid.y + padding + (large ? 0 : height + gap),
-        width: 2 * width + gap,
-        height: large ? 2 * height + gap : height,
-      },
-    };
-  }, expanded);
+const geometry = (page: Page, expanded: boolean, rtl: boolean) =>
+  page.locator(".spg-grid").evaluate(
+    (element, { large, rtl }) => {
+      const grid = element.getBoundingClientRect(),
+        css = getComputedStyle(element),
+        padding = parseFloat(css.paddingLeft),
+        gap = parseFloat(css.gap);
+      const width = (grid.width - 2 * padding - 3 * gap) / 4;
+      const height = (grid.height - 2 * padding - 2 * gap) / 3;
+      return {
+        target: {
+          x: grid.x + padding + (rtl ? 2 : 1) * (width + gap) + width / 2,
+          y: grid.y + padding + (large ? 0 : height + gap) + height / 2,
+        },
+        footprint: {
+          x: grid.x + padding + width + gap,
+          y: grid.y + padding + (large ? 0 : height + gap),
+          width: 2 * width + gap,
+          height: large ? 2 * height + gap : height,
+        },
+      };
+    },
+    { large: expanded, rtl },
+  );
 for (const expanded of [false, true]) {
   for (const rtl of [false, true]) {
     for (const mode of ["pointer", "keyboard"] as const) {
@@ -60,7 +63,7 @@ for (const expanded of [false, true]) {
             .click();
           await expect(handle).toBeEnabled();
         }
-        const bounds = await geometry(page, expanded);
+        const bounds = await geometry(page, expanded, rtl);
         if (mode === "pointer") {
           await handle.hover();
           await page.mouse.down();
