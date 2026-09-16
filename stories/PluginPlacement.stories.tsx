@@ -100,6 +100,21 @@ const mixed = defineWorkspace(defaultGrid)
     appearance: "main-stage",
   });
 export const NonAgentPlugins: Story = { args: { workspace: mixed } };
+export const DragAndDrop: Story = {
+  args: {
+    workspace: mixed,
+    dragAndDrop: true,
+    navbar: (
+      <span>
+        Drag a Move handle, or press Enter, arrows, Enter. Escape cancels. Each
+        block keeps its own placement rules.
+      </span>
+    ),
+  },
+};
+export const DragAndDropRTL: Story = {
+  args: { ...DragAndDrop.args, dir: "rtl" },
+};
 export const Light: Story = {
   args: { workspace: mixed, className: "demo-theme demo-light" },
 };

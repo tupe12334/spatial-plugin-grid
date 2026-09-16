@@ -8,7 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import { defaultGrid, defineWorkspace, intersects } from "./grid/contract";
+import { useMovement } from "./grid/useMovement";
+import { sameAnchor } from "./grid/movement";
 import type {
+  Coordinate,
   PluginContext,
   PluginInstance,
   Rectangle,
@@ -16,6 +19,8 @@ import type {
 } from "./grid/types";
 export interface SpatialPluginGridProps {
   workspace?: Workspace;
+  dragAndDrop?: boolean;
+  onPluginsMoved?: (placements: Readonly<Record<string, Coordinate>>) => void;
   navbar?: ReactNode;
   navbarHeight?: number;
   gap?: number;
@@ -93,6 +98,8 @@ function initial(plugin: PluginInstance): Entry {
 }
 export function SpatialPluginGrid({
   workspace = empty,
+  dragAndDrop = false,
+  onPluginsMoved,
   navbar,
   navbarHeight = 64,
   gap = 12,
@@ -109,6 +116,20 @@ export function SpatialPluginGrid({
   const committed = useRef(state),
     pending = useRef<State | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const grid = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState({
+    workspace,
+    plugins: workspace.plugins,
+  });
+  const plugins =
+    placement.workspace === workspace ? placement.plugins : workspace.plugins;
+  useLayoutEffect(() => {
+    setPlacement((previous) =>
+      previous.workspace === workspace
+        ? previous
+        : { workspace, plugins: workspace.plugins },
+    );
+  }, [workspace]);
   useLayoutEffect(() => {
     committed.current = state;
     pending.current = null;
@@ -199,7 +220,7 @@ export function SpatialPluginGrid({
     });
     return () => timers.forEach(clearTimeout);
   }, [state.entries, workspace]);
-  const items = workspace.plugins.map((plugin) => {
+  const items = plugins.map((plugin) => {
     const entry = entryOf(plugin),
       rect = plugin.rectangles[entry.state];
     if (!rect)
@@ -224,6 +245,25 @@ export function SpatialPluginGrid({
       )
       .map((item) => item.plugin.id),
   );
+  const movable = items.map(({ plugin, entry }) => ({
+    plugin,
+    ...entry,
+    covered: covered.has(plugin.id),
+  }));
+  const movement = useMovement({
+    workspace,
+    enabled: dragAndDrop,
+    items: movable,
+    grid,
+    onMove: (next) => {
+      setPlacement({ workspace, plugins: next });
+      onPluginsMoved?.(
+        Object.fromEntries(
+          next.map((plugin) => [plugin.id, { ...plugin.anchor }]),
+        ),
+      );
+    },
+  });
   useLayoutEffect(() => {
     const panels = Array.from(
       root.current?.querySelectorAll<HTMLElement>("[data-spg-panel]") ?? [],
@@ -260,6 +300,7 @@ export function SpatialPluginGrid({
     >
       <div className="spg-navbar">{navbar}</div>
       <div
+        ref={grid}
         className="spg-grid"
         aria-label={label}
         style={{
@@ -276,9 +317,10 @@ export function SpatialPluginGrid({
           return (
             <section
               key={plugin.id}
-              className={`spg-frame ${plugin.appearance === "main-stage" ? "spg-stage" : "spg-plugin"}`}
+              className={`spg-frame ${plugin.appearance === "main-stage" ? "spg-stage" : "spg-plugin"}${dragAndDrop ? " spg-draggable" : ""}`}
               data-spg-panel="plugin"
               data-plugin-id={plugin.id}
+              data-drag-source={movement.drag?.id === plugin.id || undefined}
               data-home={`${plugin.anchor.row}${plugin.anchor.column}`}
               data-size={entry.state}
               data-state={entry.state}
@@ -327,6 +369,19 @@ export function SpatialPluginGrid({
                   change(plugin, { state: plugin.initialState }, true);
               }}
             >
+              {dragAndDrop && (
+                <div className="spg-move-toolbar">
+                  <button
+                    {...movement.handle({
+                      plugin,
+                      ...entry,
+                      covered: covered.has(plugin.id),
+                    })}
+                  >
+                    ⠿ Move
+                  </button>
+                </div>
+              )}
               <PluginBoundary id={plugin.id} onError={onPluginError}>
                 <Content
                   plugin={plugin}
@@ -343,7 +398,24 @@ export function SpatialPluginGrid({
             </section>
           );
         })}
+        {movement.targets.map((target) => (
+          <div
+            key={`${target.row}:${target.column}`}
+            className="spg-drop-target"
+            data-drop-target={`${target.row}${target.column}`}
+            data-drop-hover={
+              !!movement.drag?.target &&
+              sameAnchor(target, movement.drag.target)
+            }
+            style={{ gridRow: target.row, gridColumn: target.column }}
+          />
+        ))}
       </div>
+      {dragAndDrop && (
+        <p className="spg-sr-only" role="status" aria-live="polite">
+          {movement.announcement}
+        </p>
+      )}
     </div>
   );
 }

@@ -39,6 +39,28 @@ For the historical grouped layout, use the explicit `AgentWorkspace` preset and 
 
 See [placement rules, all six agent positions and full migration details](docs/plugin-placement.md). This change proposes a pre-1.0 minor release through Changesets; it does not publish or tag anything.
 
+## Opt-in drag and drop
+
+Pass `dragAndDrop` to `SpatialPluginGrid` to enable dedicated Move handles. The default remains disabled. Mouse and touch can drag to highlighted cells. With a focused handle, Enter/Space picks up, arrow keys cycle compatible anchors, Enter/Space drops, and Escape cancels. Other plugin controls retain their native input behavior. Physical cell coordinates do not reverse in RTL.
+
+Movement uses the same placement contract as registration: every named state's footprint must fit the grid, alignment, and optional region at the destination. For example, a bottom-anchored main stage with a two-row expanded state cannot move to 11–14 even while collapsed. Main-stage appearance alone grants no special rules: compatible moves to other rows are allowed.
+
+Placement options can narrow movement further:
+
+```tsx
+const workspace = defineWorkspace(defaultGrid).place(chart, {
+  anchor: { row: 1, column: 1 }, initialState: "summary",
+  draggable: true, // false excludes this block from moves and swaps
+  allowedAnchors: [{ row: 1, column: 1 }, { row: 2, column: 1 }],
+});
+<SpatialPluginGrid workspace={workspace} dragAndDrop
+  onPluginsMoved={(placements) => console.log(placements)} />;
+```
+
+`allowedAnchors` is optional (all geometrically compatible anchors by default), typed against all states, and runtime-validated at registration. An empty list prevents moves. Moves to empty space and atomic swaps are supported; both directions must be permitted and neither the initial nor current footprint may collide with another block. Expansion capacity may still overlap as before. Pinned, covered, or animating blocks cannot move or be swapped, and animation covers protect otherwise-empty cells beneath them. Invalid drops and cancellation never invoke the callback.
+
+`onPluginsMoved` receives the complete `id → { row, column }` map once per accepted move, including both sides of a swap. Plugin state and mounted content stay attached to identity. Placements are local to each grid, not persisted; retain a stable workspace object across ordinary parent renders. Replacing the workspace deliberately resets all local placements to its declared anchors and cancels in-flight movement, avoiding stale permissions or collision-prone partial reconciliation. Host persistence is the caller's responsibility. The historical `AgentWorkspace` adapter is unchanged; opt into this feature through the generic `SpatialPluginGrid` API.
+
 ## Opt-in grouped preset quickstart
 
 This package is not published. Build and use a local tarball:

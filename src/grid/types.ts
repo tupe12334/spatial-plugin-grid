@@ -249,6 +249,8 @@ export interface Placement<
   Anchor extends Coordinate = Coordinate,
 > {
   readonly anchor: Anchor;
+  readonly draggable?: boolean;
+  readonly allowedAnchors?: readonly Anchor[];
   readonly initialState: N;
   readonly appearance?: "panel" | "main-stage";
   readonly region?: Rectangle | undefined;
@@ -265,6 +267,10 @@ export interface PluginInstance {
   readonly animate: boolean;
   readonly anchor: Coordinate;
   readonly alignment: Alignment;
+  readonly draggable: boolean;
+  readonly rectanglesAt: (
+    anchor: Coordinate,
+  ) => Readonly<Record<string, Rectangle>> | null;
   readonly rectangles: Readonly<Record<string, Rectangle>>;
   readonly transitions: Readonly<Record<string, readonly string[]>>;
   readonly render: (context: PluginContext<string>) => ReactNode;

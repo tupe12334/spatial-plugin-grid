@@ -39,6 +39,8 @@ const definitionSchema = z.object({
 });
 const placementSchema = z.object({
   anchor: coordinate,
+  draggable: z.boolean().optional(),
+  allowedAnchors: z.array(coordinate).optional(),
   initialState: z.string(),
   appearance: z.enum(["panel", "main-stage"]).optional(),
   animate: z.boolean().optional(),
@@ -215,6 +217,15 @@ class WorkspaceBuilder<G extends GridDefinition<Axis, Axis>>
     placement: Placement<StateName<S>>,
   ): WorkspaceBuilder<G> {
     const rectangles = validatePlacement(this.grid, plugin, placement);
+    const allowedAnchors = placement.allowedAnchors?.map((anchor) =>
+      Object.freeze({ ...anchor }),
+    );
+    for (const anchor of allowedAnchors ?? [])
+      validatePlacement(this.grid, plugin, { ...placement, anchor });
+    const region = placement.region
+      ? Object.freeze({ ...placement.region })
+      : undefined;
+    const movementPlacement = { ...placement, region };
     const rect = rectangles[placement.initialState]!;
     for (const existing of this.plugins) {
       if (existing.id === plugin.id)
@@ -232,6 +243,25 @@ class WorkspaceBuilder<G extends GridDefinition<Axis, Axis>>
       animate: placement.animate ?? true,
       anchor: Object.freeze({ ...placement.anchor }),
       alignment: plugin.layout.anchor,
+      draggable: placement.draggable ?? true,
+      rectanglesAt: (anchor: Coordinate) => {
+        if (
+          allowedAnchors &&
+          !allowedAnchors.some(
+            (value) =>
+              value.row === anchor.row && value.column === anchor.column,
+          )
+        )
+          return null;
+        try {
+          return validatePlacement(this.grid, plugin, {
+            ...movementPlacement,
+            anchor,
+          });
+        } catch {
+          return null;
+        }
+      },
       rectangles,
       transitions: Object.freeze(
         Object.fromEntries(
