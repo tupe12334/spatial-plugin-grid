@@ -12,6 +12,7 @@ interface Drag {
   id: string;
   target: Coordinate | null;
   pointerId: number | null;
+  offset: Coordinate;
 }
 interface Options {
   workspace: Workspace;
@@ -73,14 +74,64 @@ export function useMovement(options: Options) {
     current.onMove(next);
     announce(`Moved ${title} to ${target.row}${target.column}.`);
   };
-  const start = (id: string, pointerId: number | null) => {
+  const hitCell = (event: {
+    clientX: number;
+    clientY: number;
+  }): Coordinate | null => {
+    const { grid, workspace } = live.current;
+    const element = grid.current;
+    if (
+      !element ||
+      document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest(".spg-grid") !== element
+    )
+      return null;
+    const rect = element.getBoundingClientRect(),
+      css = getComputedStyle(element);
+    const left = parseFloat(css.paddingLeft) || 0,
+      right = parseFloat(css.paddingRight) || 0;
+    const top = parseFloat(css.paddingTop) || 0,
+      bottom = parseFloat(css.paddingBottom) || 0;
+    const gapX = parseFloat(css.columnGap) || 0,
+      gapY = parseFloat(css.rowGap) || 0;
+    const width =
+      (rect.width - left - right - gapX * (workspace.grid.columns.length - 1)) /
+      workspace.grid.columns.length;
+    const height =
+      (rect.height - top - bottom - gapY * (workspace.grid.rows.length - 1)) /
+      workspace.grid.rows.length;
+    const x = event.clientX - rect.left - left,
+      y = event.clientY - rect.top - top;
+    if (x < 0 || y < 0 || width <= 0 || height <= 0) return null;
+    const column = Math.floor(x / (width + gapX)) + 1,
+      row = Math.floor(y / (height + gapY)) + 1;
+    if (
+      column > workspace.grid.columns.length ||
+      row > workspace.grid.rows.length ||
+      x % (width + gapX) > width ||
+      y % (height + gapY) > height
+    )
+      return null;
+    return { row, column };
+  };
+  const start = (
+    id: string,
+    pointerId: number | null,
+    offset: Coordinate = { row: 0, column: 0 },
+  ) => {
     if (!options.enabled) return;
     const target = cells.find((cell) => planMove(options.items, id, cell));
     if (!target) {
       announce("No permitted destinations for this block.");
       return;
     }
-    setDrag({ id, target: pointerId === null ? target : null, pointerId });
+    setDrag({
+      id,
+      target: pointerId === null ? target : null,
+      pointerId,
+      offset,
+    });
     announce(
       `Picked up ${options.items.find((item) => item.plugin.id === id)?.plugin.title}. Target ${target.row}${target.column}. Use arrows to choose, Enter to drop, Escape to cancel.`,
     );
@@ -88,45 +139,11 @@ export function useMovement(options: Options) {
   useLayoutEffect(() => {
     if (!drag) return;
     const hit = (event: PointerEvent): Coordinate | null => {
-      const { grid, workspace } = live.current;
-      const element = grid.current;
-      if (
-        !element ||
-        document
-          .elementFromPoint(event.clientX, event.clientY)
-          ?.closest(".spg-grid") !== element
-      )
-        return null;
-      const rect = element.getBoundingClientRect(),
-        css = getComputedStyle(element);
-      const left = parseFloat(css.paddingLeft) || 0,
-        right = parseFloat(css.paddingRight) || 0;
-      const top = parseFloat(css.paddingTop) || 0,
-        bottom = parseFloat(css.paddingBottom) || 0;
-      const gapX = parseFloat(css.columnGap) || 0,
-        gapY = parseFloat(css.rowGap) || 0;
-      const width =
-        (rect.width -
-          left -
-          right -
-          gapX * (workspace.grid.columns.length - 1)) /
-        workspace.grid.columns.length;
-      const height =
-        (rect.height - top - bottom - gapY * (workspace.grid.rows.length - 1)) /
-        workspace.grid.rows.length;
-      const x = event.clientX - rect.left - left,
-        y = event.clientY - rect.top - top;
-      if (x < 0 || y < 0 || width <= 0 || height <= 0) return null;
-      const column = Math.floor(x / (width + gapX)) + 1,
-        row = Math.floor(y / (height + gapY)) + 1;
-      if (
-        column > workspace.grid.columns.length ||
-        row > workspace.grid.rows.length ||
-        x % (width + gapX) > width ||
-        y % (height + gapY) > height
-      )
-        return null;
-      return { row, column };
+      const cell = hitCell(event);
+      const offset = live.current.drag?.offset;
+      return cell && offset
+        ? { row: cell.row + offset.row, column: cell.column + offset.column }
+        : null;
     };
     const move = (event: PointerEvent) => {
       if (event.pointerId !== live.current.drag?.pointerId) return;
@@ -170,10 +187,15 @@ export function useMovement(options: Options) {
       !item.plugin.draggable || item.pinned || item.covered || !!item.cover,
     onPointerDown: (event) => {
       if (event.button !== 0 || !event.isPrimary) return;
+      const grabbed = hitCell(event);
+      if (!grabbed) return;
       event.preventDefault();
       event.currentTarget.focus();
       event.currentTarget.setPointerCapture(event.pointerId);
-      start(item.plugin.id, event.pointerId);
+      start(item.plugin.id, event.pointerId, {
+        row: item.plugin.anchor.row - grabbed.row,
+        column: item.plugin.anchor.column - grabbed.column,
+      });
     },
     onKeyDown: (event) => {
       if (event.key === "Enter" || event.key === " ") {
