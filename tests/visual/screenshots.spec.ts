@@ -93,22 +93,30 @@ for (const state of states)
         );
       }
     }
-    if (state.action === "drag-compact" || state.action === "drag-expanded") {
+    if (state.action.startsWith("drag-")) {
       const handle = page.getByRole("button", {
         name: "Move Inspector",
         exact: true,
       });
-      if (state.action === "drag-expanded")
+      if (state.action.endsWith("expanded"))
         await page
           .getByRole("button", { name: "Inspect", exact: true })
           .click();
       await expect(handle).toBeEnabled();
       await handle.press("Enter");
-      if (state.action === "drag-compact") await handle.press("ArrowRight");
-      await expect(page.locator('[data-drop-target="23"]')).toHaveAttribute(
-        "data-drop-hover",
-        "true",
-      );
+      const target = state.action.includes("overlap") ? "33" : "23";
+      for (
+        let count = 0;
+        count < 12 &&
+        (await page
+          .locator('[data-drop-hover="true"]')
+          .getAttribute("data-drop-target")) !== target;
+        count++
+      )
+        await handle.press("ArrowRight");
+      await expect(
+        page.locator(`[data-drop-target="${target}"]`),
+      ).toHaveAttribute("data-drop-hover", "true");
     }
     if (state.action === "chart")
       await page.getByText("Open chart", { exact: true }).click();

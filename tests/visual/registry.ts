@@ -34,6 +34,11 @@ export const stories = [
   "mainstage--resizing-transcript",
 ];
 export const states = [
+  ...["compact", "expanded"].map((size) => ({
+    story: "pluginplacement--drag-and-drop",
+    name: `drop-source-overlap-${size}`,
+    action: `drag-overlap-${size}`,
+  })),
   {
     story: "pluginplacement--drag-and-drop",
     name: "drop-footprint-compact",
