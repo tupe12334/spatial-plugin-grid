@@ -9,6 +9,10 @@ export default defineConfig({
       fileName: "index",
       cssFileName: "styles",
     },
-    rollupOptions: { external: ["react", "react-dom", "react/jsx-runtime", "zod"] },
+    rollupOptions: {
+      external: ["react", "react-dom", "react/jsx-runtime", "zod"],
+      // The public bundle contains hooks; retain its client boundary after bundling.
+      output: { banner: '"use client";' },
+    },
   },
 });

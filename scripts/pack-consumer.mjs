@@ -72,7 +72,7 @@ const invalid=()=>defineWorkspace(defaultGrid).place(agent,{anchor:{row:1,column
     run("node", [
       "--input-type=module",
       "-e",
-      "import {SpatialPluginGrid,geometry} from 'spatial-plugin-grid'; if(typeof SpatialPluginGrid !== 'function' || geometry('31','1x2').row !== 2) throw Error('Invalid package import'); console.log('ESM import passed');",
+      "import {readFileSync} from 'node:fs'; import {strict as assert} from 'node:assert'; import ts from 'typescript'; const entry=import.meta.resolve('spatial-plugin-grid'); const source=ts.createSourceFile(entry,readFileSync(new URL(entry),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.JS); const first=source.statements[0]; assert(first && ts.isExpressionStatement(first) && ts.isStringLiteral(first.expression) && first.expression.text === 'use client', 'Packed entry must begin with a use client directive'); const {SpatialPluginGrid,geometry}=await import('spatial-plugin-grid'); assert.equal(typeof SpatialPluginGrid,'function'); assert.equal(geometry('31','1x2').row,2); console.log('Client boundary and ESM import passed');",
     ]);
     run("pnpm", ["exec", "vite", "build"]);
     console.log(
