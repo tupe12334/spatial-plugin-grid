@@ -39,6 +39,56 @@ For the historical grouped layout, use the explicit `AgentWorkspace` preset and 
 
 See [placement rules, all six agent positions and full migration details](docs/plugin-placement.md). This change proposes a pre-1.0 minor release through Changesets; it does not publish or tag anything.
 
+## Embedded dashboard hosts and React Server Components
+
+The generic API above targets the pending 0.2 release, not the published 0.1.0
+API. Install a reviewed local tarball for integration testing, or wait for a
+release containing these exports and the client boundary before depending on
+them from a registry install. Building a tarball does not publish a release.
+
+The distributed JavaScript entry starts with `"use client"` because it contains
+interactive React components and hooks. This marks the **entire public entry**
+as client code in React Server Component frameworks; there is no separate
+server-only helpers entry. Create plugin definitions, render callbacks and the
+workspace inside your host's client module, not in a Server Component that
+passes functions across the serialization boundary. Keep the workspace identity
+stable across ordinary renders (module scope for static definitions, or a
+memoized host adapter for dynamic data). Fetching, authorization, persistence,
+and mapping application theme tokens remain host responsibilities.
+
+The default root fills the viewport. To embed it beneath an existing application
+header or alongside a sidebar, give its parent a definite available height and
+override the root geometry using the existing `style` prop:
+
+```tsx
+"use client";
+
+import { SpatialPluginGrid } from "spatial-plugin-grid";
+import "spatial-plugin-grid/styles.css";
+
+export function Dashboard() {
+  return (
+    <section style={{ height: "calc(100dvh - 64px)", minHeight: 0, minWidth: 0 }}>
+      <SpatialPluginGrid
+        label="Dashboard workspace"
+        navbarHeight={0}
+        style={{ position: "relative", inset: "auto", height: "100%", width: "100%" }}
+      />
+    </section>
+  );
+}
+```
+
+This example intentionally starts empty; pass a stable `workspace` built with
+`definePlugin` and `defineWorkspace` as shown above to populate it. The 64px
+header offset is illustrative: use your actual shell dimensions, give flex/grid
+ancestors `min-height: 0` / `min-width: 0` where needed, and map all semantic theme
+variables below. `navbarHeight={0}` avoids reserving a second internal navbar.
+Import the CSS from the location permitted by your framework (for example its
+root layout for global styles). The boundary does not disable server prerendering
+or promise a particular framework's end-to-end compatibility; the packed smoke
+test verifies the emitted directive, React 18/19 imports, types and CSS bundling.
+
 ## Opt-in drag and drop
 
 Pass `dragAndDrop` to `SpatialPluginGrid` to enable dedicated Move handles. The default remains disabled. Mouse and touch can drag to highlighted cells. With a focused handle, Enter/Space picks up, arrow keys cycle compatible anchors, Enter/Space drops, and Escape cancels. Other plugin controls retain their native input behavior. Physical cell coordinates do not reverse in RTL.
@@ -63,7 +113,7 @@ const workspace = defineWorkspace(defaultGrid).place(chart, {
 
 ## Opt-in grouped preset quickstart
 
-This package is not published. Build and use a local tarball:
+For the pending generic API and its updated grouped preset export, build and use a local tarball:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -206,7 +256,7 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`test:pack` creates a real tarball, installs it into an isolated temporary consumer for React 18 and 19, compiles its TSX, imports the ESM package in Node, and bundles the CSS export through Vite. It deletes the temporary consumer afterward. Browser tests use isolated headless Chromium, cover every allowed size, both animation directions and intermediate geometry, composer anchoring, reduced-motion final geometry, input equivalents, focus protection, themes, narrow/RTL, and observer cleanup. Screenshots and traces are saved under `test-results`; CI uploads browser evidence. CI executes all noninteractive checks, including packed consumers and browser tests. No paid services are required.
+`test:pack` creates a real tarball, installs it into an isolated temporary consumer for React 18 and 19, compiles its TSX, parses the installed entry to assert its leading `"use client"` directive, imports the ESM package in Node, and bundles the CSS export through Vite. It deletes the temporary consumer afterward. Browser tests use isolated headless Chromium, cover every allowed size, both animation directions and intermediate geometry, composer anchoring, reduced-motion final geometry, input equivalents, focus protection, themes, narrow/RTL, and observer cleanup. Screenshots and traces are saved under `test-results`; CI uploads browser evidence. CI executes all noninteractive checks, including packed consumers and browser tests. No paid services are required.
 
 See [captured browser evidence](docs/evidence/README.md) for the reference workspace, expanded stage, and narrow RTL layout.
 
