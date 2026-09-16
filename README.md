@@ -41,7 +41,7 @@ See [placement rules, all six agent positions and full migration details](docs/p
 
 ## Opt-in drag and drop
 
-Pass `dragAndDrop` to `SpatialPluginGrid` to enable dedicated Move handles. The default remains disabled. Mouse and touch can drag to highlighted cells. With a focused handle, Enter/Space picks up, arrow keys cycle compatible anchors, Enter/Space drops, and Escape cancels. Other plugin controls retain their native input behavior. Physical cell coordinates do not reverse in RTL.
+Pass `dragAndDrop` to `SpatialPluginGrid` to enable dedicated Move handles. The default remains disabled. Mouse and touch can drag to highlighted cells. Each destination highlights the plugin's entire current footprint, including every row and column it spans; the active destination is filled rather than highlighting only its anchor. With a focused handle, Enter/Space picks up, arrow keys cycle compatible anchors, Enter/Space drops, and Escape cancels. Other plugin controls retain their native input behavior. Physical cell coordinates do not reverse in RTL.
 
 Movement uses the same placement contract as registration: every named state's footprint must fit the grid, alignment, and optional region at the destination. For example, a bottom-anchored main stage with a two-row expanded state cannot move to 11–14 even while collapsed. Main-stage appearance alone grants no special rules: compatible moves to other rows are allowed.
 

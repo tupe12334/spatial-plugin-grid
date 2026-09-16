@@ -93,6 +93,23 @@ for (const state of states)
         );
       }
     }
+    if (state.action === "drag-compact" || state.action === "drag-expanded") {
+      const handle = page.getByRole("button", {
+        name: "Move Inspector",
+        exact: true,
+      });
+      if (state.action === "drag-expanded")
+        await page
+          .getByRole("button", { name: "Inspect", exact: true })
+          .click();
+      await expect(handle).toBeEnabled();
+      await handle.press("Enter");
+      if (state.action === "drag-compact") await handle.press("ArrowRight");
+      await expect(page.locator('[data-drop-target="23"]')).toHaveAttribute(
+        "data-drop-hover",
+        "true",
+      );
+    }
     if (state.action === "chart")
       await page.getByText("Open chart", { exact: true }).click();
     if (state.action === "inspector")
