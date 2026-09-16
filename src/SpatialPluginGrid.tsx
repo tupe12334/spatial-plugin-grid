@@ -398,18 +398,29 @@ export function SpatialPluginGrid({
             </section>
           );
         })}
-        {movement.targets.map((target) => (
-          <div
-            key={`${target.row}:${target.column}`}
-            className="spg-drop-target"
-            data-drop-target={`${target.row}${target.column}`}
-            data-drop-hover={
-              !!movement.drag?.target &&
-              sameAnchor(target, movement.drag.target)
-            }
-            style={{ gridRow: target.row, gridColumn: target.column }}
-          />
-        ))}
+        {movement.targets.map((target) => {
+          const dragged = items.find(
+            (item) => item.plugin.id === movement.drag?.id,
+          );
+          const footprint =
+            dragged?.plugin.rectanglesAt(target)?.[dragged.entry.state];
+          if (!footprint) return null;
+          return (
+            <div
+              key={`${target.row}:${target.column}`}
+              className="spg-drop-target"
+              data-drop-target={`${target.row}${target.column}`}
+              data-drop-hover={
+                !!movement.drag?.target &&
+                sameAnchor(target, movement.drag.target)
+              }
+              style={{
+                gridRow: `${footprint.row} / span ${footprint.rows}`,
+                gridColumn: `${footprint.column} / span ${footprint.columns}`,
+              }}
+            />
+          );
+        })}
       </div>
       {dragAndDrop && (
         <p className="spg-sr-only" role="status" aria-live="polite">

@@ -34,6 +34,16 @@ export const stories = [
   "mainstage--resizing-transcript",
 ];
 export const states = [
+  {
+    story: "pluginplacement--drag-and-drop",
+    name: "drop-footprint-compact",
+    action: "drag-compact",
+  },
+  {
+    story: "pluginplacement--drag-and-drop",
+    name: "drop-footprint-expanded",
+    action: "drag-expanded",
+  },
   ...["21", "22", "23", "31", "32", "33"].map((anchor) => ({
     story: `agentplugin--at-${anchor}`,
     name: `agentplugin-at${anchor}-expanded`,
