@@ -47,14 +47,7 @@ export function geometry(home: PluginHome, size: PluginSize): Rect {
     rows,
   };
 }
-export function intersects(a: Rect, b: Rect): boolean {
-  return (
-    a.column < b.column + b.columns &&
-    b.column < a.column + a.columns &&
-    a.row < b.row + b.rows &&
-    b.row < a.row + a.rows
-  );
-}
+export { intersects } from "../grid/contract";
 export interface RegistryEntry {
   readonly id: string;
   readonly title: string;

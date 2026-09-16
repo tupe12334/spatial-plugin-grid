@@ -1,8 +1,45 @@
 # Spatial Plugin Grid
 
-A React 18/19 library for a fixed viewport workspace: ten plugin homes and a united two-column main stage. Plugins expand over neighboring panels without changing their layout. Host applications own all data and actions. There is no backend, persistence, agent runtime, or shared registry singleton.
+A React 18/19 plugin-agnostic viewport layout library. Every plugin declares named states, footprints, transitions and an anchor alignment; the host chooses compatible placement. Expansion overlays neighbors without reflow. The default is an empty three-row, four-column grid with all twelve cells available. No implicit agent, backend, persistence or shared registry singleton.
 
-## Quickstart
+## Generic API (0.2 migration)
+
+```tsx
+import { SpatialPluginGrid, defaultGrid, definePlugin, defineWorkspace } from "spatial-plugin-grid";
+import "spatial-plugin-grid/styles.css";
+
+const chart = definePlugin({
+  id: "chart", title: "Chart",
+  layout: {
+    anchor: "top-left",
+    states: { summary: { rows: 1, columns: 1 }, detail: { rows: 2, columns: 3 } },
+    transitions: { summary: ["detail"], detail: ["summary"] },
+  },
+  render: ({ state, transitionTo, reset }) => (
+    <div className="spg-plugin-body">
+      <p>Chart: {state}</p>
+      <button onClick={() => state === "summary" ? transitionTo("detail") : reset()}>Toggle chart</button>
+    </div>
+  ),
+});
+const workspace = defineWorkspace(defaultGrid).place(chart, {
+  anchor: { row: 1, column: 1 }, initialState: "summary",
+});
+export const app = <SpatialPluginGrid workspace={workspace} className="my-theme" />;
+export const empty = <SpatialPluginGrid className="my-theme" />;
+```
+
+Supply semantic colors from your host theme (see below). `defineGrid` accepts consecutive one-based tuples up to eight rows/columns. `definePlugin` preserves literal state names, footprints, legal transition targets and optional statewise minima. `defineWorkspace(grid).place(plugin, placement)` rejects incompatible literal anchors across ALL states. `placeDynamic` is the explicit runtime-validated boundary for dynamic coordinates. Zod-backed `validatePlacement` and `validatePlugin` accept unknown input.
+
+`SpatialPluginGrid` accepts `workspace`, `navbar`, `navbarHeight` (64), `gap` (12), `padding` (12), `label`, `className`, `style`, `dir` and `onPluginError`. Placement supplies `anchor`, `initialState`, optional `region`, `appearance`, `animate`, `onStateChange` and `onPinnedChange`. `PluginContext` exposes inferred `state`, `transitionTo(name)`, `reset()`, `pinned` and `setPinned(boolean)`. Reset explicitly returns to the validated initial state, including from terminal states. Pinning freezes the current state; plugins choose whether to expand first. IDs and layout contracts must remain stable while mounted; remove a registration to discard its runtime state, or use a new ID/remount for a new contract.
+
+Breaking change: `SpatialPluginGrid` no longer accepts the legacy `plugins` or `mainStage` props. Replace them with inferred definitions and a workspace. Replace `setSize`/`shrink` with `transitionTo`/`reset`; move state/pin callbacks onto placement. `createAgentPlugin` registers conversation UI through this same contract. `MainStage` remains standalone presentation. `appearance: "main-stage"` only changes styling; it grants no placement or focus privileges.
+
+For the historical grouped layout, use the explicit `AgentWorkspace` preset and `GroupedPluginDefinition` shown below. It builds ordinary registrations, not a second engine. Its helper geometry and home restrictions are preset-specific. The generic grid never reserves cells 32/33.
+
+See [placement rules, all six agent positions and full migration details](docs/plugin-placement.md). This change proposes a pre-1.0 minor release through Changesets; it does not publish or tag anything.
+
+## Opt-in grouped preset quickstart
 
 This package is not published. Build and use a local tarball:
 
@@ -15,12 +52,12 @@ pnpm pack
 
 ```tsx
 import {
-  SpatialPluginGrid,
-  type PluginDefinition,
+  AgentWorkspace,
+  type GroupedPluginDefinition,
 } from "spatial-plugin-grid";
 import "spatial-plugin-grid/styles.css";
 
-const plugins: PluginDefinition[] = [
+const plugins: GroupedPluginDefinition[] = [
   {
     id: "notes",
     title: "Notes",
@@ -39,7 +76,7 @@ const plugins: PluginDefinition[] = [
 
 export function Workspace() {
   return (
-    <SpatialPluginGrid
+    <AgentWorkspace
       plugins={plugins}
       navbar={<nav aria-label="Workspace">Your navigation</nav>}
       mainStage={{
@@ -61,20 +98,20 @@ export function Workspace() {
 
 `YourComposer` is your own controlled form and submit callback. The library never submits or creates messages. Demo content and palettes exist only in stories.
 
-## API
+## Grouped preset API
 
 | Export                                                                  | Contract                                                                                                                                                                                    |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SpatialPluginGrid`                                                     | `plugins`, optional `mainStage`, `navbar`, `preset`, `className`, `style`, `dir`; optional `onPluginSizeChange(id,size)`, `onStageExpandedChange(expanded)`, `onStageLockedChange(locked)`, `onPluginError(id,error,info)` |
-| `PluginDefinition`                                                      | Immutable `id`, `title`, `home`, `allowedSizes`, and `render(context)`                                                                                                                      |
-| `PluginRenderContext`                                                   | `size`, `expanded`, `setSize(size)`, `shrink()`; invalid requested sizes throw                                                                                                              |
+| `AgentWorkspace`                                                        | `plugins`, optional `mainStage`, `navbar`, `preset`, `className`, `style`, `dir`; optional `onPluginSizeChange(id,size)`, `onStageExpandedChange(expanded)`, `onStageLockedChange(locked)`, `onPluginError(id,error,info)` |
+| `GroupedPluginDefinition`                                               | Immutable `id`, `title`, `home`, `allowedSizes`, and `render(context)`                                                                                                                      |
+| `GroupedPluginContext`                                                  | `size`, `expanded`, `setSize(size)`, `shrink()`; invalid requested sizes throw                                                                                                              |
 | `MainStage`                                                             | Required `expanded` and `onExpandedChange`; optional `locked`, `onLockedChange`, `title`, `transcript`, `composer`                                                                                                      |
 | `TranscriptEntry`                                                       | `id`, `author`, `content: ReactNode`                                                                                                                                                        |
 | `StageRenderContext`                                                    | `expanded`, `setExpanded(boolean)`, `locked`, `setLocked(boolean)`; accepted by transcript and composer render props                                                                                                        |
 | `agentWorkspace` / `LayoutPreset`                                       | Default name, navbar height 64, gap 12, padding 12; pass finite nonnegative dimensions to customize spacing                                                                                 |
 | `pluginHomes`, `sizesFor`, `geometry`, `intersects`, `validateRegistry` | Pure reusable layout and registry functions; geometry uses one-based physical columns and rows                                                                                              |
 
-The grid owns expansion state; callbacks notify the host. `MainStage` can also be used independently as a controlled component in a host-sized `.spg-root` wrapper. Its parent controls expansion geometry; the grid provides the 480ms height animation. Registry validation runs on every render, rejects duplicate IDs/homes, reserved or invalid homes, duplicate/disallowed sizes, and requires `1x1`. Partial registries are allowed and leave empty cells. Plugin errors are isolated behind per-ID boundaries, preserving size controls; change the plugin ID to reset a failed instance. Keep IDs stable for the life of each plugin.
+The grid owns expansion state; callbacks notify the host. `MainStage` can also be used independently as a controlled component in a host-sized `.spg-root` wrapper. Its parent controls expansion geometry; the grid provides the 480ms height animation. Grouped preset registry validation runs on every render, rejects duplicate IDs/homes, reserved or invalid homes, duplicate/disallowed sizes, and requires `1x1`. Partial registries are allowed and leave empty cells. Plugin errors are isolated behind per-ID boundaries, showing a fallback; change the plugin ID to reset a failed instance. Keep IDs stable for the life of each plugin.
 
 Custom transcript render props own their content semantics and styling. The built-in typed transcript supplies author labels, a centered layout, scroll-driven depth, and a log region. It initially scrolls to the latest message and follows appended messages when the reader is within 48px of the bottom. While following, it stays bottom-anchored throughout stage expansion, collapse, and other resizes; scrolling back to older messages preserves the reader's position instead. Composer render props receive stage controls, not a fabricated message API.
 
@@ -110,9 +147,9 @@ Those host names are illustrative, not assumed product tokens. Complete the foll
 
 Theme updates use CSS inheritance immediately. All library selectors are scoped to `spg` classes. There are no body, main, or strong resets. Import styles once; ESM JS and declaration exports are separate from the explicit CSS export. React and React DOM are external peers.
 
-## Constraints, decisions, and limitations
+## Grouped preset behavior and limitations
 
-The fixed physical grid is `11 12 13 14 / 21 22 23 24 / 31 [32+33] 34`. Top slots accept `1x1`, `2x1`, `1x2`, `2x2` within their left or right four-cell group. Bottom slots accept `1x1` and `1x2` upward over `21` or `24`. Labels retain their home numbers. RTL changes text direction, not physical cell addresses.
+The opt-in AgentWorkspace preset arranges the physical grid as `11 12 13 14 / 21 22 23 24 / 31 [32+33] 34`. Top slots accept `1x1`, `2x1`, `1x2`, `2x2` within their left or right four-cell group. Bottom slots accept `1x1` and `1x2` upward over `21` or `24`. Labels retain their home numbers. RTL changes text direction, not physical cell addresses.
 
 Expansion overlays use explicit grid placement and instance-local stacking order. The latest expansion wins unless the main stage is locked; a locked stage stays above every intersecting plugin, including later expansions. Even partially obscured panels become entirely inert so hidden controls cannot receive keyboard focus. Focus moves to the frontmost unobscured panel if needed. Shrink re-enables panels; it does not steal focus back. The stage conservatively reserves its full expanded area during collapse, avoiding early focus beneath an animated surface. Plugins must keep interactive content inside their panel: portaled content outside the root is host-owned and cannot be made inert by this library.
 
@@ -137,6 +174,7 @@ Node 24 and pnpm 9.15.9. Storybook core and React/Vite adapters are aligned at 1
 ```sh
 pnpm lint
 pnpm typecheck
+pnpm test:types
 pnpm test
 pnpm build
 pnpm test:pack
@@ -189,6 +227,7 @@ Full local validation (same scripts as CI):
 pnpm install --frozen-lockfile
 pnpm lint
 pnpm typecheck
+pnpm test:types
 pnpm test
 pnpm test:release
 pnpm test:release-tooling

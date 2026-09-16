@@ -9,6 +9,6 @@ export default defineConfig({
       fileName: "index",
       cssFileName: "styles",
     },
-    rollupOptions: { external: ["react", "react-dom", "react/jsx-runtime"] },
+    rollupOptions: { external: ["react", "react-dom", "react/jsx-runtime", "zod"] },
   },
 });

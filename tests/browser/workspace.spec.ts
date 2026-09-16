@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { geometry, pluginHomes, sizesFor } from "../../src/layout";
+import { geometry, pluginHomes, sizesFor } from "../../src/presets/groupedLayout";
 const open = async (page: Page, story = "reference-workspace") => {
   await page.goto(`/iframe.html?id=workspace--${story}&viewMode=story`);
   await expect(page.locator(".spg-stage")).toBeVisible();
@@ -606,7 +606,7 @@ test("pinned stage keeps native scrolling and blocks every collapse path until f
   await page
     .getByRole("button", { name: "Lock expanded stage", exact: true })
     .click();
-  await expect(stage).toHaveAttribute("data-locked", "true");
+  await expect(stage).toHaveAttribute("data-pinned", "true");
   await page.waitForTimeout(550);
   close((await box(page, ".spg-stage")).height, base.height * 2 + 12);
   expect(await box(page, '[data-home="22"]')).toEqual(occupied);
@@ -643,15 +643,15 @@ test("pinned stage keeps native scrolling and blocks every collapse path until f
   await expect(collapse).toHaveAttribute("aria-disabled", "true");
   await collapse.focus();
   await collapse.press("Enter");
-  await expect(stage).toHaveAttribute("data-expanded", "true");
+  await expect(stage).toHaveAttribute("data-state", "expanded");
   await page
     .getByRole("button", { name: "Unlock expanded stage", exact: true })
     .click();
   await page.waitForTimeout(250);
-  await expect(stage).toHaveAttribute("data-expanded", "true");
+  await expect(stage).toHaveAttribute("data-state", "expanded");
   await history.focus();
   await history.press("End");
-  await expect(stage).toHaveAttribute("data-expanded", "false");
+  await expect(stage).toHaveAttribute("data-state", "collapsed");
   await expect(page.locator('[data-home="22"]')).toHaveJSProperty(
     "inert",
     false,
@@ -683,7 +683,7 @@ test("later overlapping expansion stays behind pinned chat and unlock restores n
   await page
     .getByRole("button", { name: "Unlock expanded stage", exact: true })
     .click();
-  await expect(stage).toHaveAttribute("data-expanded", "true");
+  await expect(stage).toHaveAttribute("data-state", "expanded");
   await expect(stage).toHaveJSProperty("inert", true);
   await expect(neighbor).toHaveJSProperty("inert", false);
   await expect(neighbor.locator("select")).toBeFocused();

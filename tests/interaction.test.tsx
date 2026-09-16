@@ -7,7 +7,7 @@ import {
   render,
   screen,
 } from "@testing-library/react";
-import { MainStage, SpatialPluginGrid, type PluginDefinition } from "../src";
+import { MainStage, AgentWorkspace, type GroupedPluginDefinition } from "../src";
 const disconnect = vi.fn(),
   remove = vi.fn();
 beforeEach(() => {
@@ -32,7 +32,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
-const plugins: PluginDefinition[] = [
+const plugins: GroupedPluginDefinition[] = [
   {
     id: "a",
     title: "A",
@@ -50,7 +50,7 @@ const plugins: PluginDefinition[] = [
 ];
 it("expands without renumbering, makes covered panel inert and recovers focus", () => {
   const callback = vi.fn();
-  render(<SpatialPluginGrid plugins={plugins} onPluginSizeChange={callback} />);
+  render(<AgentWorkspace plugins={plugins} onPluginSizeChange={callback} />);
   screen.getByText("Other").focus();
   fireEvent.change(screen.getByLabelText("A size"), {
     target: { value: "2x1" },
@@ -66,7 +66,7 @@ it("isolates render errors and reports to host", () => {
   const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   const onError = vi.fn();
   render(
-    <SpatialPluginGrid
+    <AgentWorkspace
       plugins={[
         {
           ...plugins[0]!,
@@ -85,13 +85,13 @@ it("isolates render errors and reports to host", () => {
   consoleError.mockRestore();
 });
 it("cleans observers and media listeners on unmount", () => {
-  const view = render(<SpatialPluginGrid plugins={plugins} />);
+  const view = render(<AgentWorkspace plugins={plugins} />);
   view.unmount();
   expect(disconnect).toHaveBeenCalledTimes(1);
   expect(remove).toHaveBeenCalledTimes(1);
 });
 it("empty transcript supports keyboard, wheel and thresholded touch collapse", () => {
-  render(<SpatialPluginGrid plugins={plugins} />);
+  render(<AgentWorkspace plugins={plugins} />);
   const history = screen.getByRole("log");
   fireEvent.keyDown(history, { key: "ArrowUp" });
   expect(
@@ -559,7 +559,7 @@ it("pinned grid covers occupied homes and later overlapping expansions without l
   const expanded = vi.fn(),
     locked = vi.fn();
   render(
-    <SpatialPluginGrid
+    <AgentWorkspace
       plugins={[
         ...plugins,
         ...(["22", "23"] as const).map((home) => ({
@@ -577,7 +577,7 @@ it("pinned grid covers occupied homes and later overlapping expansions without l
   screen.getByText("Occupied 22").focus();
   fireEvent.click(screen.getByRole("button", { name: "Lock expanded stage" }));
   const stage = screen.getByRole("log").closest<HTMLElement>(".spg-stage")!;
-  expect(stage.dataset.expanded).toBe("true");
+  expect(stage.dataset.state).toBe("expanded");
   for (const home of ["22", "23"])
     expect(screen.getByRole("region", { name: home }).inert).toBe(true);
   expect(stage.contains(document.activeElement)).toBe(true);
@@ -595,7 +595,7 @@ it("pinned grid covers occupied homes and later overlapping expansions without l
   fireEvent.click(
     screen.getByRole("button", { name: "Unlock expanded stage" }),
   );
-  expect(stage.dataset.expanded).toBe("true");
+  expect(stage.dataset.state).toBe("expanded");
   expect(stage.inert).toBe(true);
   expect(neighbor.inert).toBe(false);
   expect(document.activeElement).toBe(screen.getByLabelText("B size"));
@@ -642,7 +642,7 @@ it("unlock then explicit collapse restores occupied panels after animation", () 
   vi.useFakeTimers();
   try {
     render(
-      <SpatialPluginGrid
+      <AgentWorkspace
         plugins={[
           {
             id: "22",
@@ -721,7 +721,7 @@ it.each(
       return (
         <Suspense fallback={<p>Waiting</p>}>
           {mode === "grid" ? (
-            <SpatialPluginGrid
+            <AgentWorkspace
               plugins={[]}
               mainStage={{ composer }}
               onStageExpandedChange={change}
@@ -815,7 +815,7 @@ describe.each(["controlled", "uncontrolled", "grid"] as const)(
             </button>
           );
           return mode === "grid" ? (
-            <SpatialPluginGrid
+            <AgentWorkspace
               plugins={[]}
               mainStage={{ composer }}
               onStageLockedChange={locks}
@@ -962,7 +962,7 @@ it("grid guards batched and retained render-context collapse requests", () => {
     locked = vi.fn();
   let staleCollapse: (() => void) | undefined;
   render(
-    <SpatialPluginGrid
+    <AgentWorkspace
       plugins={[]}
       onStageExpandedChange={expanded}
       onStageLockedChange={locked}
@@ -987,8 +987,8 @@ it("grid guards batched and retained render-context collapse requests", () => {
   act(() => staleCollapse!());
   expect(
     screen.getByRole("log").closest<HTMLElement>(".spg-stage")!.dataset
-      .expanded,
-  ).toBe("true");
+      .state,
+  ).toBe("expanded");
   expect(expanded).toHaveBeenCalledExactlyOnceWith(true);
   expect(locked).toHaveBeenCalledExactlyOnceWith(true);
 });

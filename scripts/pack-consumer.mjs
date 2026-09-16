@@ -32,7 +32,20 @@ try {
     );
     writeFileSync(
       join(temporary, "index.tsx"),
-      `import {SpatialPluginGrid, MainStage, geometry, type PluginDefinition} from 'spatial-plugin-grid';\nimport 'spatial-plugin-grid/styles.css';\nconst plugins: PluginDefinition[] = [{id:'consumer',title:'Consumer',home:'11',allowedSizes:['1x1'],render:({size})=><p>{size}</p>}];\nexport const app=<SpatialPluginGrid plugins={plugins} onStageLockedChange={(locked:boolean)=>{}} mainStage={{composer:({locked,setLocked,setExpanded})=><button onClick={()=>{setLocked(!locked);setExpanded(false);}}>Lock</button>}}/>;\nexport const stage=<MainStage expanded={false} onExpandedChange={()=>{}} locked={true} onLockedChange={(locked:boolean)=>{}} transcript={({locked,expanded,setLocked})=><button onClick={()=>setLocked(false)}>{String(locked && expanded)}</button>}/>;\nimport {createRoot} from 'react-dom/client';\nconst root = document.getElementById('root');\nif (root) createRoot(root).render(app);\nconsole.log(geometry('34','1x2'));`,
+      `import {AgentWorkspace as SpatialPluginGrid, MainStage, geometry, type GroupedPluginDefinition as PluginDefinition} from 'spatial-plugin-grid';\nimport 'spatial-plugin-grid/styles.css';\nconst plugins: PluginDefinition[] = [{id:'consumer',title:'Consumer',home:'11',allowedSizes:['1x1'],render:({size})=><p>{size}</p>}];\nexport const app=<SpatialPluginGrid plugins={plugins} onStageLockedChange={(locked:boolean)=>{}} mainStage={{composer:({locked,setLocked,setExpanded})=><button onClick={()=>{setLocked(!locked);setExpanded(false);}}>Lock</button>}}/>;\nexport const stage=<MainStage expanded={false} onExpandedChange={()=>{}} locked={true} onLockedChange={(locked:boolean)=>{}} transcript={({locked,expanded,setLocked})=><button onClick={()=>setLocked(false)}>{String(locked && expanded)}</button>}/>;\nimport {generic} from './generic';\nexport {generic};\nimport {createRoot} from 'react-dom/client';\nconst root = document.getElementById('root');\nif (root) createRoot(root).render(app);\nconsole.log(geometry('34','1x2'));`,
+    );
+    writeFileSync(
+      join(temporary, "generic.tsx"),
+      `
+import {SpatialPluginGrid, defaultGrid, definePlugin, defineWorkspace, createAgentPlugin} from 'spatial-plugin-grid';
+const status=definePlugin({id:'status',title:'Status',layout:{anchor:'top-left',states:{ready:{rows:1,columns:1}},transitions:{ready:[]}},render:({state})=><p>{state}</p>});
+const agent=createAgentPlugin({id:'assistant'});
+const workspace=defineWorkspace(defaultGrid).place(status,{anchor:{row:1,column:4},initialState:'ready'}).place(agent,{anchor:{row:3,column:3},initialState:'collapsed',appearance:'main-stage'});
+export const generic=<SpatialPluginGrid workspace={workspace}/>;
+export const empty=<SpatialPluginGrid/>;
+// @ts-expect-error all-state expansion cannot leave grid
+const invalid=()=>defineWorkspace(defaultGrid).place(agent,{anchor:{row:1,column:1},initialState:'collapsed'});
+`,
     );
     writeFileSync(
       join(temporary, "index.html"),
@@ -54,6 +67,7 @@ try {
       "--target",
       "ES2022",
       "index.tsx",
+      "generic.tsx",
     ]);
     run("node", [
       "--input-type=module",
