@@ -5,6 +5,8 @@ export const stories = [
   ...[
     "empty",
     "non-agent-plugins",
+    "drag-and-drop",
+    "drag-and-drop-rtl",
     "light",
     "narrow-rtl",
     "all-cells",

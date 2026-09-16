@@ -1,3 +1,39 @@
+.spg-draggable {
+  display: flex;
+  flex-direction: column;
+}
+.spg-move-toolbar {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+}
+.spg-move-handle {
+  touch-action: none;
+  user-select: none;
+}
+.spg-root .spg-move-handle {
+  cursor: grab;
+}
+.spg-root .spg-move-handle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.spg-draggable[data-drag-source="true"] {
+  outline: 2px solid var(--spg-focus);
+}
+.spg-drop-target {
+  pointer-events: none;
+  z-index: 2147483647;
+  border: 2px dashed var(--spg-focus);
+  border-radius: 12px;
+}
+.spg-drop-target[data-drop-hover="true"] {
+  border-style: solid;
+  background: color-mix(in srgb, var(--spg-accent) 15%, transparent);
+}
+.spg-draggable > .spg-stage-content {
+  flex: 1;
+  min-height: 0;
+}
 .spg-root,
 .spg-root * {
   box-sizing: border-box;
