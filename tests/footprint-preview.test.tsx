@@ -67,6 +67,16 @@ for (const scenario of cases) {
       fireEvent.keyDown(screen.getByRole("button", { name: "Move Panel" }), {
         key: "Enter",
       });
+      const handle = screen.getByRole("button", { name: "Move Panel" });
+      for (
+        let count = 0;
+        count < 12 &&
+        container
+          .querySelector('[data-drop-hover="true"]')
+          ?.getAttribute("data-drop-target") !== "22";
+        count++
+      )
+        fireEvent.keyDown(handle, { key: "ArrowRight" });
       const preview = container.querySelector<HTMLElement>(
         '[data-drop-target="22"]',
       );

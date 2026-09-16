@@ -17,8 +17,16 @@
   cursor: not-allowed;
   opacity: 0.5;
 }
-.spg-draggable[data-drag-source="true"] {
+.spg-draggable[data-drag-source="true"]:not([data-drag-source-overlap="true"]) {
   outline: 2px solid var(--spg-focus);
+}
+/* Preserve source content, but do not draw its frame through the destination. */
+.spg-root .spg-draggable[data-drag-source-overlap="true"] {
+  border-color: transparent;
+  box-shadow: none;
+}
+.spg-draggable[data-drag-source-overlap="true"]:before {
+  display: none;
 }
 .spg-drop-target {
   pointer-events: none;

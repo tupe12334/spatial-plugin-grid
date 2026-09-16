@@ -264,6 +264,15 @@ export function SpatialPluginGrid({
       );
     },
   });
+  const dragged = items.find((item) => item.plugin.id === movement.drag?.id);
+  const selectedTarget = movement.targets.find(
+    (target) =>
+      movement.drag?.target && sameAnchor(target, movement.drag.target),
+  );
+  const selectedFootprint =
+    selectedTarget && dragged
+      ? dragged.plugin.rectanglesAt(selectedTarget)?.[dragged.entry.state]
+      : undefined;
   useLayoutEffect(() => {
     const panels = Array.from(
       root.current?.querySelectorAll<HTMLElement>("[data-spg-panel]") ?? [],
@@ -321,6 +330,11 @@ export function SpatialPluginGrid({
               data-spg-panel="plugin"
               data-plugin-id={plugin.id}
               data-drag-source={movement.drag?.id === plugin.id || undefined}
+              data-drag-source-overlap={
+                movement.drag?.id === plugin.id &&
+                !!selectedFootprint &&
+                intersects(rect, selectedFootprint)
+              }
               data-home={`${plugin.anchor.row}${plugin.anchor.column}`}
               data-size={entry.state}
               data-state={entry.state}
@@ -399,21 +413,24 @@ export function SpatialPluginGrid({
           );
         })}
         {movement.targets.map((target) => {
-          const dragged = items.find(
-            (item) => item.plugin.id === movement.drag?.id,
-          );
           const footprint =
             dragged?.plugin.rectanglesAt(target)?.[dragged.entry.state];
-          if (!footprint) return null;
+          const active = !!selectedTarget && sameAnchor(target, selectedTarget);
+          // A selected destination is one surface, not a stack of candidate edges.
+          // Keep the full permission list in movement for keyboard navigation.
+          if (
+            !footprint ||
+            (!active &&
+              selectedFootprint &&
+              intersects(footprint, selectedFootprint))
+          )
+            return null;
           return (
             <div
               key={`${target.row}:${target.column}`}
               className="spg-drop-target"
               data-drop-target={`${target.row}${target.column}`}
-              data-drop-hover={
-                !!movement.drag?.target &&
-                sameAnchor(target, movement.drag.target)
-              }
+              data-drop-hover={active}
               style={{
                 gridRow: `${footprint.row} / span ${footprint.rows}`,
                 gridColumn: `${footprint.column} / span ${footprint.columns}`,
