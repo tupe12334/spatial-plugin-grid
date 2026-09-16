@@ -5,7 +5,7 @@ import {
   pluginHomes,
   sizesFor,
   validateRegistry,
-} from "../src/layout";
+} from "../src/presets/groupedLayout";
 describe("geometry", () => {
   for (const home of pluginHomes)
     for (const size of sizesFor(home))

@@ -1,16 +1,16 @@
 import { useState, type CSSProperties } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  SpatialPluginGrid,
+  AgentWorkspace,
   MainStage,
   pluginHomes,
   sizesFor,
-  type PluginDefinition,
+  type GroupedPluginDefinition,
   type TranscriptEntry,
 } from "../src";
 import "../src/styles.css";
 import "./demo.css";
-const plugins: PluginDefinition[] = pluginHomes.map((home) => ({
+const plugins: GroupedPluginDefinition[] = pluginHomes.map((home) => ({
   id: home,
   title: `Plugin ${home}`,
   home,
@@ -57,14 +57,14 @@ function Composer() {
 const meta = {
   title: "Workspace",
   excludeStories: ["StageExample"],
-  component: SpatialPluginGrid,
+  component: AgentWorkspace,
   args: {
     plugins,
     mainStage: { transcript, composer: <Composer /> },
     className: "demo-theme",
     navbar: <span>Agent Workspace</span>,
   },
-} satisfies Meta<typeof SpatialPluginGrid>;
+} satisfies Meta<typeof AgentWorkspace>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const ReferenceWorkspace: Story = {};
@@ -125,7 +125,7 @@ export const ThemeUpdates: Story = {
   render: (args) => {
     const [light, setLight] = useState(false);
     return (
-      <SpatialPluginGrid
+      <AgentWorkspace
         {...args}
         className={`demo-theme ${light ? "demo-light" : ""}`}
         navbar={<button onClick={() => setLight(!light)}>Change theme</button>}
@@ -141,7 +141,7 @@ export const Cleanup: Story = {
         <button className="demo-mount" onClick={() => setShown(!shown)}>
           Toggle mount
         </button>
-        {shown && <SpatialPluginGrid {...args} />}
+        {shown && <AgentWorkspace {...args} />}
       </>
     );
   },

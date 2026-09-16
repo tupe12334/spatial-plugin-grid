@@ -34,6 +34,7 @@ test("manual validation guards the same HEAD before and after all gates without 
     "--version",
     "lint",
     "typecheck",
+    "test:types",
     "test",
     "build",
     "test:pack",

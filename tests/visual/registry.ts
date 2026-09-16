@@ -1,4 +1,15 @@
 export const stories = [
+  ...["21", "22", "23", "31", "32", "33"].map(
+    (anchor) => `agentplugin--at-${anchor}`,
+  ),
+  ...[
+    "empty",
+    "non-agent-plugins",
+    "light",
+    "narrow-rtl",
+    "all-cells",
+    "invalid-dynamic-placement",
+  ].map((name) => `pluginplacement--${name}`),
   "workspace--reference-workspace",
   "workspace--all-sizes-and-groups",
   "workspace--light",
@@ -21,6 +32,21 @@ export const stories = [
   "mainstage--resizing-transcript",
 ];
 export const states = [
+  ...["21", "22", "23", "31", "32", "33"].map((anchor) => ({
+    story: `agentplugin--at-${anchor}`,
+    name: `agentplugin-at${anchor}-expanded`,
+    action: "expand",
+  })),
+  {
+    story: "pluginplacement--non-agent-plugins",
+    name: "non-agent-chart-detail",
+    action: "chart",
+  },
+  {
+    story: "pluginplacement--non-agent-plugins",
+    name: "non-agent-inspector-detail",
+    action: "inspector",
+  },
   {
     story: "workspace--pinnable-stage",
     name: "workspace-pinned-overlap",

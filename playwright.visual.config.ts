@@ -13,6 +13,9 @@ if (
 export default defineConfig({
   ...base,
   testDir: "tests/visual",
+  // Emulated amd64 captures can be slow on shared development hosts.
+  // This changes time budgets only, never image tolerance or coverage.
+  timeout: 120_000,
   workers: 1,
   fullyParallel: false,
   retries: 0,
@@ -24,6 +27,7 @@ export default defineConfig({
     ["html", { outputFolder: "playwright-report/visual", open: "never" }],
   ],
   expect: {
+    timeout: 30_000,
     toHaveScreenshot: {
       animations: "disabled",
       caret: "hide",

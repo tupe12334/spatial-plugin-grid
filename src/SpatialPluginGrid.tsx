@@ -7,40 +7,23 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from "react";
-import {
-  agentWorkspace,
-  geometry,
-  intersects,
-  validateRegistry,
-  type LayoutPreset,
-  type PluginSize,
-  type Rect,
-  type RegistryEntry,
-} from "./layout";
-import { MainStage, type MainStageProps } from "./MainStage";
-export interface PluginRenderContext {
-  size: PluginSize;
-  expanded: boolean;
-  setSize: (size: PluginSize) => void;
-  shrink: () => void;
-}
-export interface PluginDefinition extends RegistryEntry {
-  render: (context: PluginRenderContext) => ReactNode;
-}
+import { defaultGrid, defineWorkspace, intersects } from "./grid/contract";
+import type {
+  PluginContext,
+  PluginInstance,
+  Rectangle,
+  Workspace,
+} from "./grid/types";
 export interface SpatialPluginGridProps {
-  plugins: readonly PluginDefinition[];
-  mainStage?: Omit<
-    MainStageProps,
-    "expanded" | "onExpandedChange" | "locked" | "onLockedChange"
-  >;
-  preset?: LayoutPreset;
+  workspace?: Workspace;
   navbar?: ReactNode;
+  navbarHeight?: number;
+  gap?: number;
+  padding?: number;
+  label?: string;
   className?: string;
   style?: CSSProperties;
   dir?: "ltr" | "rtl";
-  onPluginSizeChange?: (id: string, size: PluginSize) => void;
-  onStageLockedChange?: (locked: boolean) => void;
-  onStageExpandedChange?: (expanded: boolean) => void;
   onPluginError?: (id: string, error: Error, info: ErrorInfo) => void;
 }
 class PluginBoundary extends Component<
@@ -66,178 +49,197 @@ class PluginBoundary extends Component<
     );
   }
 }
-function PluginContent({
+function Content({
   plugin,
   context,
 }: {
-  plugin: PluginDefinition;
-  context: PluginRenderContext;
+  plugin: PluginInstance;
+  context: PluginContext<string>;
 }) {
   return plugin.render(context);
 }
-interface State {
-  sizes: Record<string, PluginSize>;
-  layers: Record<string, number>;
-  clock: number;
-  stage: boolean;
-  locked: boolean;
-  stageLayer: number;
-  stageCover: boolean;
+interface Entry {
+  state: string;
+  pinned: boolean;
+  layer: number;
+  cover: Rectangle | null;
+  revision: number;
+  settleAt: number;
 }
-const stageRect = (expanded: boolean): Rect => ({
-  column: 2,
-  row: expanded ? 2 : 3,
-  columns: 2,
-  rows: expanded ? 2 : 1,
-});
+interface State {
+  entries: ReadonlyMap<string, Entry>;
+  clock: number;
+}
+const empty = defineWorkspace(defaultGrid);
+function union(a: Rectangle, b: Rectangle): Rectangle {
+  const row = Math.min(a.row, b.row),
+    column = Math.min(a.column, b.column);
+  return {
+    row,
+    column,
+    rows: Math.max(a.row + a.rows, b.row + b.rows) - row,
+    columns: Math.max(a.column + a.columns, b.column + b.columns) - column,
+  };
+}
+function initial(plugin: PluginInstance): Entry {
+  return {
+    state: plugin.initialState,
+    pinned: false,
+    layer: 0,
+    cover: null,
+    revision: 0,
+    settleAt: 0,
+  };
+}
 export function SpatialPluginGrid({
-  plugins,
-  mainStage,
-  preset = agentWorkspace,
+  workspace = empty,
   navbar,
+  navbarHeight = 64,
+  gap = 12,
+  padding = 12,
+  label = "Plugin workspace",
   className = "",
   style,
   dir,
-  onPluginSizeChange,
-  onStageExpandedChange,
-  onStageLockedChange,
   onPluginError,
 }: SpatialPluginGridProps) {
-  validateRegistry(plugins);
-  if (
-    [preset.gap, preset.padding, preset.navbarHeight].some(
-      (value) => !Number.isFinite(value) || value < 0,
-    )
-  )
+  if ([navbarHeight, gap, padding].some((n) => !Number.isFinite(n) || n < 0))
     throw new Error("Layout dimensions must be finite and nonnegative");
-  const [state, setState] = useState<State>({
-    sizes: {},
-    layers: {},
-    clock: 0,
-    stage: false,
-    locked: false,
-    stageLayer: 0,
-    stageCover: false,
-  });
+  const [state, setState] = useState<State>({ entries: new Map(), clock: 0 });
+  const committed = useRef(state),
+    pending = useRef<State | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const stageControl = useRef({ expanded: state.stage, locked: state.locked });
-  const committedLocked = useRef(state.locked);
   useLayoutEffect(() => {
-    // Pending requests deduplicate a batch; only commits release a visible lock.
-    stageControl.current = { expanded: state.stage, locked: state.locked };
-    committedLocked.current = state.locked;
+    committed.current = state;
+    pending.current = null;
   });
-  const sizeOf = (plugin: PluginDefinition): PluginSize => {
-    const size = state.sizes[plugin.id] ?? "1x1";
-    return plugin.allowedSizes.includes(size) ? size : "1x1";
+  const entryOf = (plugin: PluginInstance, source = state) =>
+    source.entries.get(plugin.id) ?? initial(plugin);
+  const change = (
+    plugin: PluginInstance,
+    update: { state?: string; pinned?: boolean },
+    reset = false,
+  ) => {
+    const source = pending.current ?? committed.current,
+      current = entryOf(plugin, source);
+    const name = update.state ?? current.state;
+    if (!Object.hasOwn(plugin.rectangles, name))
+      throw new Error(`Plugin ${plugin.id}: unknown state ${name}`);
+    if (name !== current.state) {
+      if (entryOf(plugin, committed.current).pinned || current.pinned) return;
+      if (!reset && !plugin.transitions[current.state]?.includes(name))
+        throw new Error(
+          `Plugin ${plugin.id}: transition ${current.state} → ${name} is not allowed`,
+        );
+    }
+    const pinned = update.pinned ?? current.pinned;
+    if (name === current.state && pinned === current.pinned) return;
+    const revision = source.clock + 1;
+    const next: Entry = {
+      state: name,
+      pinned,
+      revision,
+      settleAt: name !== current.state ? Date.now() + 490 : current.settleAt,
+      layer:
+        name === current.state
+          ? current.layer
+          : name === plugin.initialState
+            ? plugin.animate
+              ? current.layer
+              : 0
+            : revision,
+      cover:
+        name !== current.state && plugin.animate
+          ? union(
+              current.cover ?? plugin.rectangles[current.state]!,
+              plugin.rectangles[name]!,
+            )
+          : current.cover,
+    };
+    const nextState = {
+      entries: new Map(source.entries).set(plugin.id, next),
+      clock: revision,
+    };
+    pending.current = nextState;
+    setState(nextState);
+    if (name !== current.state) plugin.onStateChange(name);
+    if (pinned !== current.pinned) plugin.onPinnedChange(pinned);
   };
-  const setSize = (plugin: PluginDefinition, size: PluginSize) => {
-    if (!plugin.allowedSizes.includes(size))
-      throw new Error(`Size ${size} is not allowed for ${plugin.id}`);
-    setState((previous) => ({
-      ...previous,
-      sizes: { ...previous.sizes, [plugin.id]: size },
-      layers: {
-        ...previous.layers,
-        [plugin.id]: size === "1x1" ? 0 : previous.clock + 1,
-      },
-      clock: previous.clock + 1,
-    }));
-    onPluginSizeChange?.(plugin.id, size);
-  };
-  const setExpanded = (expanded: boolean) => {
-    const current = stageControl.current;
-    if (
-      (!expanded && (committedLocked.current || current.locked)) ||
-      current.expanded === expanded
-    )
-      return;
-    stageControl.current = { ...current, expanded };
-    setState((previous) => ({
-      ...previous,
-      stage: expanded,
-      stageCover: true,
-      stageLayer: expanded ? previous.clock + 1 : previous.stageLayer,
-      clock: previous.clock + 1,
-    }));
-    onStageExpandedChange?.(expanded);
-  };
-  const setLocked = (locked: boolean) => {
-    const current = stageControl.current;
-    if (current.locked === locked) return;
-    stageControl.current = { expanded: locked || current.expanded, locked };
-    setState((previous) => ({
-      ...previous,
-      locked,
-      stage: locked || previous.stage,
-      stageCover: locked || previous.stageCover,
-      stageLayer:
-        locked && !previous.stage ? previous.clock + 1 : previous.stageLayer,
-      clock: locked && !previous.stage ? previous.clock + 1 : previous.clock,
-    }));
-    if (locked && !current.expanded) onStageExpandedChange?.(true);
-    onStageLockedChange?.(locked);
-  };
-  // Keep the historical layer for ordinary latest-expansion ordering on unlock.
-  const stageLayer = state.locked ? state.clock + 1 : state.stageLayer;
   useLayoutEffect(() => {
-    if (state.stage || !state.stageCover) return;
-    const media = matchMedia("(prefers-reduced-motion: reduce)");
-    const timer = setTimeout(
-      () =>
-        setState((previous) => ({
-          ...previous,
-          stageCover: false,
-          stageLayer: 0,
-        })),
-      media.matches ? 0 : 490,
-    );
-    return () => clearTimeout(timer);
-  }, [state.stage, state.stageCover]);
-  const items = plugins.map((plugin) => ({
-    plugin,
-    size: sizeOf(plugin),
-    rect: geometry(plugin.home, sizeOf(plugin)),
-    layer: sizeOf(plugin) === "1x1" ? 0 : (state.layers[plugin.id] ?? 0),
-  }));
+    const live = new Set(workspace.plugins.map((p) => p.id));
+    if ([...state.entries.keys()].some((id) => !live.has(id)))
+      setState((previous) => ({
+        ...previous,
+        entries: new Map([...previous.entries].filter(([id]) => live.has(id))),
+      }));
+  }, [workspace, state.entries]);
+  useLayoutEffect(() => {
+    const timers = workspace.plugins.flatMap((plugin) => {
+      const entry = state.entries.get(plugin.id);
+      if (!entry?.cover) return [];
+      const timer = setTimeout(
+        () =>
+          setState((previous) => {
+            const latest = previous.entries.get(plugin.id);
+            if (!latest || latest.revision !== entry.revision) return previous;
+            return {
+              ...previous,
+              entries: new Map(previous.entries).set(plugin.id, {
+                ...latest,
+                cover: null,
+                layer: latest.state === plugin.initialState ? 0 : latest.layer,
+              }),
+            };
+          }),
+        matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? 0
+          : Math.max(0, entry.settleAt - Date.now()),
+      );
+      return [timer];
+    });
+    return () => timers.forEach(clearTimeout);
+  }, [state.entries, workspace]);
+  const items = workspace.plugins.map((plugin) => {
+    const entry = entryOf(plugin),
+      rect = plugin.rectangles[entry.state];
+    if (!rect)
+      throw new Error(
+        `Plugin ${plugin.id}: current state ${entry.state} was removed; remount the grid to replace its contract`,
+      );
+    return {
+      plugin,
+      entry,
+      rect,
+      layer: entry.pinned ? state.clock + 1 + entry.layer : entry.layer,
+    };
+  });
   const covered = new Set(
     items
-      .filter(
-        (item) =>
-          items.some(
-            (other) =>
-              other.layer > item.layer && intersects(other.rect, item.rect),
-          ) ||
-          (state.stageCover &&
-            stageLayer > item.layer &&
-            intersects(stageRect(true), item.rect)),
+      .filter((item) =>
+        items.some(
+          (other) =>
+            other.layer > item.layer &&
+            intersects(other.entry.cover ?? other.rect, item.rect),
+        ),
       )
       .map((item) => item.plugin.id),
   );
-  const stageCovered = items.some(
-    (item) =>
-      item.layer > stageLayer &&
-      intersects(item.rect, stageRect(state.stageCover)),
-  );
   useLayoutEffect(() => {
-    const element = root.current;
-    if (!element) return;
     const panels = Array.from(
-      element.querySelectorAll<HTMLElement>("[data-spg-panel]"),
+      root.current?.querySelectorAll<HTMLElement>("[data-spg-panel]") ?? [],
     );
     for (const panel of panels)
       if (panel.dataset.covered !== "true") panel.inert = false;
     for (const panel of panels) {
       const hidden = panel.dataset.covered === "true";
       if (hidden && panel.contains(document.activeElement)) {
-        const front = Array.from(
-          element.querySelectorAll<HTMLElement>(
-            '[data-spg-panel][data-covered="false"]',
-          ),
-        ).sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];
-        front
-          ?.querySelector<HTMLElement>('select,button,[tabindex="0"]')
-          ?.focus();
+        const front = panels
+          .filter((p) => p.dataset.covered !== "true")
+          .sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))[0];
+        (
+          front?.querySelector<HTMLElement>('select,button,[tabindex="0"]') ??
+          front
+        )?.focus();
       }
       panel.inert = hidden;
     }
@@ -250,100 +252,97 @@ export function SpatialPluginGrid({
       style={
         {
           ...style,
-          "--spg-gap": `${preset.gap}px`,
-          "--spg-padding": `${preset.padding}px`,
-          "--spg-navbar-height": `${preset.navbarHeight}px`,
+          "--spg-gap": `${gap}px`,
+          "--spg-padding": `${padding}px`,
+          "--spg-navbar-height": `${navbarHeight}px`,
         } as CSSProperties
       }
     >
       <div className="spg-navbar">{navbar}</div>
-      <div className="spg-grid" aria-label={preset.name}>
-        {items.map(({ plugin, size, rect, layer }) => (
-          <section
-            key={plugin.id}
-            className="spg-plugin"
-            data-spg-panel="plugin"
-            data-home={plugin.home}
-            data-size={size}
-            data-covered={covered.has(plugin.id)}
-            aria-label={plugin.title}
-            style={{
-              gridColumn: `${rect.column} / span ${rect.columns}`,
-              gridRow: `${rect.row} / span ${rect.rows}`,
-              zIndex: layer,
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") setSize(plugin, "1x1");
-            }}
-          >
-            <div className="spg-plugin-header">
-              <span className="spg-home">{plugin.home}</span>
-              <label>
-                <span className="spg-sr-only">{plugin.title} size</span>
-                <select
-                  value={size}
-                  onChange={(event) => {
-                    const selected = plugin.allowedSizes.find(
-                      (value) => value === event.target.value,
-                    );
-                    if (selected) setSize(plugin, selected);
-                  }}
-                >
-                  {plugin.allowedSizes.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="spg-plugin-body">
-              <PluginBoundary
-                key={plugin.id}
-                id={plugin.id}
-                onError={onPluginError}
-              >
-                <PluginContent
+      <div
+        className="spg-grid"
+        aria-label={label}
+        style={{
+          gridTemplateColumns: `repeat(${workspace.grid.columns.length},minmax(0,1fr))`,
+          gridTemplateRows: `repeat(${workspace.grid.rows.length},minmax(0,1fr))`,
+        }}
+      >
+        {items.map(({ plugin, entry, rect, layer }) => {
+          const base = plugin.rectangles[plugin.initialState]!;
+          const width = rect.columns / base.columns,
+            height = rect.rows / base.rows;
+          const dimension = (ratio: number) =>
+            `calc(${ratio * 100}% + ${(ratio - 1) * gap}px)`;
+          return (
+            <section
+              key={plugin.id}
+              className={`spg-frame ${plugin.appearance === "main-stage" ? "spg-stage" : "spg-plugin"}`}
+              data-spg-panel="plugin"
+              data-plugin-id={plugin.id}
+              data-home={`${plugin.anchor.row}${plugin.anchor.column}`}
+              data-size={entry.state}
+              data-state={entry.state}
+              data-at-home={entry.state === plugin.initialState}
+              data-pinned={entry.pinned}
+              data-covered={covered.has(plugin.id)}
+              aria-label={plugin.title}
+              tabIndex={-1}
+              style={{
+                gridColumn: `${base.column} / span ${base.columns}`,
+                gridRow: `${base.row} / span ${base.rows}`,
+                alignSelf: plugin.alignment.startsWith("bottom")
+                  ? "end"
+                  : "start",
+                justifySelf: plugin.alignment.endsWith("right")
+                  ? "end"
+                  : "start",
+                width: dimension(width),
+                height: dimension(height),
+                zIndex: layer,
+                transition: plugin.animate ? undefined : "none",
+              }}
+              onTransitionEnd={(event) => {
+                if (
+                  event.target === event.currentTarget &&
+                  ["height", "width"].includes(event.propertyName)
+                )
+                  setState((previous) => {
+                    const latest = previous.entries.get(plugin.id);
+                    if (!latest?.cover) return previous;
+                    return {
+                      ...previous,
+                      entries: new Map(previous.entries).set(plugin.id, {
+                        ...latest,
+                        cover: null,
+                        layer:
+                          latest.state === plugin.initialState
+                            ? 0
+                            : latest.layer,
+                      }),
+                    };
+                  });
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape")
+                  change(plugin, { state: plugin.initialState }, true);
+              }}
+            >
+              <PluginBoundary id={plugin.id} onError={onPluginError}>
+                <Content
                   plugin={plugin}
                   context={{
-                    size,
-                    expanded: size !== "1x1",
-                    setSize: (value) => setSize(plugin, value),
-                    shrink: () => setSize(plugin, "1x1"),
+                    state: entry.state,
+                    pinned: entry.pinned,
+                    transitionTo: (name) => change(plugin, { state: name }),
+                    reset: () =>
+                      change(plugin, { state: plugin.initialState }, true),
+                    setPinned: (pinned) => change(plugin, { pinned }),
                   }}
                 />
               </PluginBoundary>
-            </div>
-          </section>
-        ))}
-        <div
-          className="spg-stage"
-          data-spg-panel="stage"
-          data-covered={stageCovered}
-          data-expanded={state.stage}
-          data-locked={state.locked}
-          style={{ zIndex: stageLayer }}
-          onTransitionEnd={(event) => {
-            if (
-              event.target === event.currentTarget &&
-              event.propertyName === "height" &&
-              !state.stage
-            )
-              setState((previous) => ({
-                ...previous,
-                stageCover: false,
-                stageLayer: 0,
-              }));
-          }}
-        >
-          <MainStage
-            {...mainStage}
-            locked={state.locked}
-            onLockedChange={setLocked}
-            expanded={state.stage}
-            onExpandedChange={setExpanded}
-          />
-        </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react";
-import { MainStage, SpatialPluginGrid } from "../src";
+import { MainStage, AgentWorkspace } from "../src";
 import { StageExample } from "./Workspace.stories";
 export default {
   title: "MainStage",
@@ -74,7 +74,7 @@ export const ResizingTranscript: StoryObj<typeof MainStage> = {
   render: function ResizingStage() {
     const [count, setCount] = useState(30);
     return (
-      <SpatialPluginGrid
+      <AgentWorkspace
         className="demo-theme"
         plugins={[]}
         mainStage={{

@@ -4,3 +4,4 @@ storybook-static/
 test-results/
 playwright-report/
 *.tgz
+.hermes/plans/

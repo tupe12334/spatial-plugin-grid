@@ -64,7 +64,8 @@ for (const kind of [
     else writeFileSync(path, "changed");
     if (kind.startsWith("staged")) git("add", "-A");
     expect(guard).toThrow(/Baseline guard/);
-  });
+    // These fixtures spawn Git and Node; use the same budget as real push fixtures.
+  }, 30_000);
 test("guard allows unrelated dirty docs and committed baselines", () => {
   const { root, git, guard } = repo();
   writeFileSync(join(root, "README.md"), "staged docs");
