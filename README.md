@@ -268,3 +268,7 @@ pnpm release:dry
 `pnpm release:dry` runs `release-it --dry-run --ci`. release-it skips all write-side hooks in `--dry-run` mode (including the preflight guard above), so it proves the tag/push/release plan without needing a `GITHUB_TOKEN`. `pnpm test:release-tooling` exercises commitlint, repository policy and exact notes, plus real Changesets versioning followed by release-it dry-runs for stable and prerelease fixtures. These disposable repositories verify no version bump, commit, tag, push or changes to this repository. `pnpm test:release` covers publishing policy using standard `semver` validation. We deliberately avoid a Changesets release-it plugin: its release-time version bump would duplicate the reviewed version PR.
 
 See [local pre-push validation and screenshot review](docs/validation.md) for Docker setup, gates and intentional baseline updates.
+
+## See also
+
+[moadim](https://moadim.io/) — loop engineering: build, schedule & run agent loops. Related project, same author.
