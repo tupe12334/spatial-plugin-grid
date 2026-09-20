@@ -52,14 +52,12 @@ it("expands without renumbering, makes covered panel inert and recovers focus", 
   const callback = vi.fn();
   render(<AgentWorkspace plugins={plugins} onPluginSizeChange={callback} />);
   screen.getByText("Other").focus();
-  fireEvent.change(screen.getByLabelText("A size"), {
-    target: { value: "2x1" },
-  });
+  fireEvent.click(screen.getByRole("button", { name: "Expand A right to 2x1" }));
   expect(screen.getByRole("region", { name: "B" }).inert).toBe(true);
-  expect(document.activeElement).toBe(screen.getByLabelText("A size"));
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Shrink A right to 1x1" }));
   expect(screen.getByRole("region", { name: "A" }).dataset.home).toBe("11");
   expect(callback).toHaveBeenCalledWith("a", "2x1");
-  fireEvent.keyDown(screen.getByLabelText("A size"), { key: "Escape" });
+  fireEvent.keyDown(screen.getByRole("button", { name: "Shrink A right to 1x1" }), { key: "Escape" });
   expect(screen.getByRole("region", { name: "B" }).inert).toBe(false);
 });
 it("isolates render errors and reports to host", () => {
@@ -100,18 +98,18 @@ it("empty transcript supports keyboard, wheel and thresholded touch collapse", (
       .getAttribute("aria-expanded"),
   ).toBe("true");
   fireEvent.keyDown(history, { key: "ArrowDown" });
-  expect(screen.getByRole("button", { name: /Expand/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Expand ↗" })).toBeTruthy();
   fireEvent.wheel(history, { deltaY: -100 });
   expect(screen.getByRole("button", { name: /Collapse/ })).toBeTruthy();
   fireEvent.wheel(history, { deltaY: 100 });
-  expect(screen.getByRole("button", { name: /Expand/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Expand ↗" })).toBeTruthy();
   fireEvent.touchStart(history, { touches: [{ clientY: 200 }] });
   fireEvent.touchMove(history, { touches: [{ clientY: 210 }] });
-  expect(screen.getByRole("button", { name: /Expand/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Expand ↗" })).toBeTruthy();
   fireEvent.touchMove(history, { touches: [{ clientY: 250 }] });
   expect(screen.getByRole("button", { name: /Collapse/ })).toBeTruthy();
   fireEvent.touchMove(history, { touches: [{ clientY: 100 }] });
-  expect(screen.getByRole("button", { name: /Expand/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Expand ↗" })).toBeTruthy();
 });
 
 // jsdom has no layout: supply overflow geometry before the mount effects run.
@@ -581,9 +579,7 @@ it("pinned grid covers occupied homes and later overlapping expansions without l
   for (const home of ["22", "23"])
     expect(screen.getByRole("region", { name: home }).inert).toBe(true);
   expect(stage.contains(document.activeElement)).toBe(true);
-  fireEvent.change(screen.getByLabelText("B size"), {
-    target: { value: "2x2" },
-  });
+  fireEvent.click(screen.getByRole("button", { name: "Expand B bottom-left to 2x2" }));
   const neighbor = screen.getByRole("region", { name: "B" });
   expect(stage.inert).toBe(false);
   expect(neighbor.inert).toBe(true);
@@ -598,7 +594,7 @@ it("pinned grid covers occupied homes and later overlapping expansions without l
   expect(stage.dataset.state).toBe("expanded");
   expect(stage.inert).toBe(true);
   expect(neighbor.inert).toBe(false);
-  expect(document.activeElement).toBe(screen.getByLabelText("B size"));
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Shrink B bottom-left to 1x1" }));
 });
 
 it("controlled lock props imply expanded and context reports guarded controls", () => {
@@ -839,7 +835,7 @@ describe.each(["controlled", "uncontrolled", "grid"] as const)(
         }
         render(<Host />);
         if (mode === "grid")
-          fireEvent.click(screen.getByRole("button", { name: /Expand/ }));
+          fireEvent.click(screen.getByRole("button", { name: "Expand ↗" }));
         if (initial)
           fireEvent.click(
             screen.getByRole("button", { name: "Lock expanded stage" }),
