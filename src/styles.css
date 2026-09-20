@@ -95,6 +95,60 @@
     0 20px 60px var(--spg-shadow),
     0 0 0 1px var(--spg-focus);
 }
+.spg-directional-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 26px 4px;
+}
+.spg-directional-panel[data-horizontal-edge="right"] {
+  padding-right: 26px;
+}
+.spg-directional-panel[data-horizontal-edge="left"] {
+  padding-left: 26px;
+}
+.spg-root .spg-edge-control {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  padding: 3px;
+  display: grid;
+  place-items: center;
+}
+.spg-edge-control[data-edge="top"] {
+  top: 1px;
+  left: calc(50% - 12px);
+}
+.spg-edge-control[data-edge="bottom"] {
+  bottom: 1px;
+  left: calc(50% - 12px);
+}
+.spg-edge-control[data-edge="left"] {
+  left: 1px;
+  top: calc(50% - 12px);
+}
+.spg-edge-control[data-edge="right"] {
+  right: 1px;
+  top: calc(50% - 12px);
+}
+.spg-edge-control[data-edge="top-left"] {
+  top: 1px;
+  left: 1px;
+}
+.spg-edge-control[data-edge="top-right"] {
+  top: 1px;
+  right: 1px;
+}
+.spg-edge-control[data-edge="bottom-left"] {
+  bottom: 1px;
+  left: 1px;
+}
+.spg-edge-control[data-edge="bottom-right"] {
+  bottom: 1px;
+  right: 1px;
+}
 .spg-plugin-header {
   display: flex;
   align-items: center;

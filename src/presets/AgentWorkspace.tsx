@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DirectionalControls } from "./DirectionalControls";
 import {
   SpatialPluginGrid,
   type SpatialPluginGridProps,
@@ -84,22 +85,20 @@ export function AgentWorkspace({
         const size = plugin.allowedSizes.find((size) => size === state);
         if (!size) throw new Error(`Invalid grouped state ${state}`);
         return (
-          <>
+          <div
+            className="spg-directional-panel"
+            data-horizontal-edge={alignment.endsWith("left") ? "right" : "left"}
+          >
+            <DirectionalControls
+              title={plugin.title}
+              current={footprints[size]}
+              targets={transitions[size] ?? []}
+              states={footprints}
+              alignment={alignment}
+              transitionTo={transitionTo}
+            />
             <div className="spg-plugin-header">
               <span className="spg-home">{plugin.home}</span>
-              <label>
-                <span className="spg-sr-only">{plugin.title} size</span>
-                <select
-                  value={size}
-                  onChange={(event) => transitionTo(event.target.value)}
-                >
-                  {plugin.allowedSizes.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
             <div className="spg-plugin-body">
               {plugin.render({
@@ -109,7 +108,7 @@ export function AgentWorkspace({
                 shrink: reset,
               })}
             </div>
-          </>
+          </div>
         );
       },
     });

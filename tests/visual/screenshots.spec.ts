@@ -1,3 +1,4 @@
+import { setSize } from "../directionalHelpers";
 import { expect, test } from "@playwright/test";
 import { readFileSync, readdirSync } from "node:fs";
 import { states, verifyInventory, verifyBaselines } from "./registry";
@@ -56,7 +57,7 @@ for (const state of states)
       const [home, size] = state.action.split("/") as [PluginHome, PluginSize];
       const tile = page.locator(`[data-home="${home}"]`);
       const initial = (await page.locator('[data-home="11"]').boundingBox())!;
-      await tile.locator("select").selectOption(size);
+      await setSize(tile, size);
       const rect = geometry(home, size);
       const actual = (await tile.boundingBox())!;
       expect(
@@ -133,7 +134,7 @@ for (const state of states)
         .getByRole("button", { name: "Lock expanded stage", exact: true })
         .click();
       if (state.action === "pin-overlap")
-        await page.locator('[data-home="11"] select').selectOption("2x2");
+        await setSize(page.locator('[data-home="11"]'), "2x2");
       await expect(page.locator(".spg-stage")).toHaveJSProperty("inert", false);
       await expect(page.locator('[data-home="22"]')).toHaveJSProperty(
         "inert",
@@ -147,7 +148,7 @@ for (const state of states)
     if (state.action === "theme")
       await page.getByRole("button", { name: "Change theme" }).click();
     if (state.action === "counter") {
-      await page.getByRole("button", { name: /Host count/ }).click();
+      await page.getByRole("button", { name: /^Host count/ }).click();
       await expect(
         page.getByRole("button", { name: /Host count 1/ }),
       ).toBeVisible();

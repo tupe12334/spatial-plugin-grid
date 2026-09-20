@@ -72,7 +72,7 @@ export const AllSizesAndGroups: Story = {
   args: {
     navbar: (
       <span>
-        Use each size selector: top groups expand inward; bottom slots expand
+        Use edge arrows: top groups expand inward; bottom slots expand
         upward.
       </span>
     ),

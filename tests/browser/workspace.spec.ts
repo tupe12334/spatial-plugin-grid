@@ -1,3 +1,4 @@
+import { setSize } from "../directionalHelpers";
 import { expect, test, type Page } from "@playwright/test";
 import { geometry, pluginHomes, sizesFor } from "../../src/presets/groupedLayout";
 const open = async (page: Page, story = "reference-workspace") => {
@@ -32,7 +33,7 @@ for (const home of pluginHomes) {
     close(first.x, 12);
     close(first.y, 76);
     for (const size of sizesFor(home)) {
-      await page.locator(`[data-home="${home}"] select`).selectOption(size);
+      await setSize(page.locator(`[data-home="${home}"]`), size);
       const rect = geometry(home, size),
         actual = await box(page, `[data-home="${home}"]`);
       close(actual.x, 12 + (rect.column - 1) * (first.width + 12));
@@ -48,7 +49,7 @@ for (const home of pluginHomes) {
         home,
       );
       await noOverflow(page);
-      await page.locator(`[data-home="${home}"] select`).selectOption("1x1");
+      await setSize(page.locator(`[data-home="${home}"]`), "1x1");
     }
     if (home === pluginHomes[pluginHomes.length - 1])
       await page.screenshot({ path: "test-results/reference-workspace.png" });
@@ -158,7 +159,7 @@ test("nonoverflowing transcript keyboard, Escape, touch and reduced-motion geome
     close((await box(page, ".spg-stage")).height, base.height);
   }
   for (const key of ["ArrowDown", "PageDown", "End"]) {
-    await page.getByRole("button", { name: /Expand/ }).click();
+    await page.locator(".spg-stage").getByRole("button", { name: /Expand/ }).click();
     await history.focus();
     await history.press(key);
     close((await box(page, ".spg-stage")).height, base.height);
@@ -190,18 +191,18 @@ test("latest expansion fronts prior panels and recovers focus", async ({
   page,
 }) => {
   await open(page);
-  await page.locator('[data-home="11"] select').selectOption("2x2");
-  await page.locator('[data-home="31"] select').selectOption("1x2");
+  await setSize(page.locator('[data-home="11"]'), "2x2");
+  await setSize(page.locator('[data-home="31"]'), "1x2");
   await expect(page.locator('[data-home="11"]')).toHaveJSProperty(
     "inert",
     true,
   );
-  await page.locator('[data-home="31"] select').press("Escape");
+  await page.locator('[data-home="31"] .spg-edge-control').press("Escape");
   await expect(page.locator('[data-home="11"]')).toHaveJSProperty(
     "inert",
     false,
   );
-  await page.locator('[data-home="11"] select').selectOption("1x1");
+  await setSize(page.locator('[data-home="11"]'), "1x1");
   await expect(page.locator('[data-home="22"]')).toHaveJSProperty(
     "inert",
     false,
@@ -270,13 +271,13 @@ test("native wheel and toggle keyboard activation; covered controls leave tab or
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await open(page);
-  await page.locator('[data-home="22"] select').focus();
-  await page.locator('[data-home="11"] select').selectOption("2x2");
-  await expect(page.locator('[data-home="11"] select')).toBeFocused();
+  await page.locator('[data-home="22"] .spg-edge-control').first().focus();
+  await setSize(page.locator('[data-home="11"]'), "2x2");
+  await expect(page.locator('[data-home="11"] .spg-edge-control').first()).toBeFocused();
   await page
-    .locator('[data-home="22"] select')
+    .locator('[data-home="22"] .spg-edge-control').first()
     .evaluate((element) => element.focus());
-  await expect(page.locator('[data-home="11"] select')).toBeFocused();
+  await expect(page.locator('[data-home="11"] .spg-edge-control').first()).toBeFocused();
   for (let step = 0; step < 16; step++) {
     await page.keyboard.press("Tab");
     expect(
@@ -285,9 +286,9 @@ test("native wheel and toggle keyboard activation; covered controls leave tab or
       ),
     ).toBe(true);
   }
-  await page.locator('[data-home="11"] select').selectOption("1x1");
-  await page.locator('[data-home="22"] select').focus();
-  await expect(page.locator('[data-home="22"] select')).toBeFocused();
+  await setSize(page.locator('[data-home="11"]'), "1x1");
+  await page.locator('[data-home="22"] .spg-edge-control').first().focus();
+  await expect(page.locator('[data-home="22"] .spg-edge-control').first()).toBeFocused();
   const toggle = page.locator(".spg-stage-header button[aria-expanded]");
   await toggle.focus();
   await toggle.press("Enter");
@@ -639,7 +640,7 @@ test("pinned stage keeps native scrolling and blocks every collapse path until f
   await page
     .getByRole("button", { name: "Host collapse", exact: true })
     .click();
-  const collapse = page.getByRole("button", { name: /Collapse/ });
+  const collapse = page.locator(".spg-stage").getByRole("button", { name: /Collapse/ });
   await expect(collapse).toHaveAttribute("aria-disabled", "true");
   await collapse.focus();
   await collapse.press("Enter");
@@ -669,7 +670,7 @@ test("later overlapping expansion stays behind pinned chat and unlock restores n
     .getByRole("button", { name: "Lock expanded stage", exact: true })
     .click();
   await page.waitForTimeout(550);
-  await neighbor.locator("select").selectOption("2x2");
+  await setSize(neighbor, "2x2");
   await expect(neighbor).toHaveJSProperty("inert", true);
   await expect(stage).toHaveJSProperty("inert", false);
   const bounds = await box(page, ".spg-stage");
@@ -686,12 +687,50 @@ test("later overlapping expansion stays behind pinned chat and unlock restores n
   await expect(stage).toHaveAttribute("data-state", "expanded");
   await expect(stage).toHaveJSProperty("inert", true);
   await expect(neighbor).toHaveJSProperty("inert", false);
-  await expect(neighbor.locator("select")).toBeFocused();
-  await neighbor.locator("select").selectOption("1x1");
+  await expect(neighbor.locator(".spg-edge-control").first()).toBeFocused();
+  await setSize(neighbor, "1x1");
   await expect(stage).toHaveJSProperty("inert", false);
-  await page.getByRole("button", { name: /Collapse/ }).click();
+  await page.locator(".spg-stage").getByRole("button", { name: /Collapse/ }).click();
   await expect(page.locator('[data-home="23"]')).toHaveJSProperty(
     "inert",
     false,
   );
 });
+
+for (const story of ["reference-workspace", "rtl"]) {
+  test(`physical directional edges and keyboard inverse: ${story}`, async ({ page }) => {
+    await open(page, story);
+    for (const home of pluginHomes) {
+      const tile = page.locator(`[data-home="${home}"]`);
+      const bounds = await tile.boundingBox();
+      if (!bounds) throw new Error("Missing tile");
+      for (const control of await tile.locator(".spg-edge-control").all()) {
+        const edge = await control.getAttribute("data-edge");
+        const rect = await control.boundingBox();
+        if (!rect || !edge) throw new Error("Missing control geometry");
+        expect(rect.width).toBeGreaterThanOrEqual(24);
+        expect(rect.height).toBeGreaterThanOrEqual(24);
+        if (edge.includes("left")) close(rect.x, bounds.x + 2);
+        if (edge.includes("right")) close(rect.x + rect.width, bounds.x + bounds.width - 2);
+        if (edge.includes("top")) close(rect.y, bounds.y + 2);
+        if (edge.includes("bottom")) close(rect.y + rect.height, bounds.y + bounds.height - 2);
+      }
+    }
+    const tile = page.locator('[data-home="21"]');
+    const baseline = await tile.boundingBox();
+    if (!baseline) throw new Error("Missing tile21");
+    const up = tile.locator('[data-edge="top"]');
+    await up.focus();
+    await up.press("Enter");
+    await expect(tile).toHaveAttribute("data-state", "1x2");
+    const expanded = await tile.boundingBox();
+    if (!expanded) throw new Error("Missing expanded tile21");
+    close(expanded.y + expanded.height, baseline.y + baseline.height);
+    expect(expanded.y).toBeLessThan(baseline.y);
+    await expect(up).toBeFocused();
+    await expect(up).toHaveAttribute("aria-label", /Shrink.*top to 1x1/);
+    await up.press("Space");
+    await expect(tile).toHaveAttribute("data-state", "1x1");
+    expect(await tile.boundingBox()).toEqual(baseline);
+  });
+}
