@@ -10,6 +10,7 @@ import {
 import { defaultGrid, defineWorkspace, intersects } from "./grid/contract";
 import { useMovement } from "./grid/useMovement";
 import { sameAnchor } from "./grid/movement";
+import { validateOverlays } from "./layout/validateOverlays";
 import type {
   Coordinate,
   PluginContext,
@@ -19,6 +20,17 @@ import type {
 } from "./grid/types";
 export interface SpatialPluginGridProps {
   workspace?: Workspace;
+  /**
+   * Always-on-top plugins (see `appearance: "overlay"`) rendered in addition
+   * to `workspace.plugins`, without altering `workspace` identity. Kept
+   * separate so adding/removing an overlay never resets drag placement or
+   * any other plugin's committed state, and a plugin whose cells fall
+   * outside every overlay rectangle is never covered/inert.
+   */
+  overlay?: readonly PluginInstance[];
+  /** Temporary render-only states. Underlying state, pin and placement stay committed. */
+  presentationStates?: Readonly<Record<string, string>>;
+  onOverlayDismiss?: () => void;
   dragAndDrop?: boolean;
   onPluginsMoved?: (placements: Readonly<Record<string, Coordinate>>) => void;
   navbar?: ReactNode;
@@ -76,6 +88,9 @@ interface State {
   clock: number;
 }
 const empty = defineWorkspace(defaultGrid);
+// CSS z-index accepts any int; this stays far above revision-derived layers
+// (clock/pins) without risking overflow into an invalid computed value.
+const OVERLAY_LAYER = 2147483000;
 function union(a: Rectangle, b: Rectangle): Rectangle {
   const row = Math.min(a.row, b.row),
     column = Math.min(a.column, b.column);
@@ -98,6 +113,9 @@ function initial(plugin: PluginInstance): Entry {
 }
 export function SpatialPluginGrid({
   workspace = empty,
+  overlay,
+  presentationStates,
+  onOverlayDismiss,
   dragAndDrop = false,
   onPluginsMoved,
   navbar,
@@ -117,6 +135,8 @@ export function SpatialPluginGrid({
     pending = useRef<State | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  const overlayWasOpen = useRef(false);
   const [placement, setPlacement] = useState({
     workspace,
     plugins: workspace.plugins,
@@ -220,9 +240,21 @@ export function SpatialPluginGrid({
     });
     return () => timers.forEach(clearTimeout);
   }, [state.entries, workspace]);
-  const items = plugins.map((plugin) => {
-    const entry = entryOf(plugin),
-      rect = plugin.rectangles[entry.state];
+  if (overlay) validateOverlays(workspace, overlay);
+  const items = [...plugins, ...(overlay ?? [])].map((plugin) => {
+    const committedEntry = entryOf(plugin);
+    const presentedState = presentationStates?.[plugin.id];
+    const entry =
+      presentedState === undefined
+        ? committedEntry
+        : {
+            ...committedEntry,
+            state: presentedState,
+            pinned: false,
+            cover: null,
+            layer: 0,
+          };
+    const rect = plugin.rectangles[entry.state];
     if (!rect)
       throw new Error(
         `Plugin ${plugin.id}: current state ${entry.state} was removed; remount the grid to replace its contract`,
@@ -231,7 +263,12 @@ export function SpatialPluginGrid({
       plugin,
       entry,
       rect,
-      layer: entry.pinned ? state.clock + 1 + entry.layer : entry.layer,
+      layer:
+        plugin.appearance === "overlay"
+          ? OVERLAY_LAYER
+          : entry.pinned
+            ? state.clock + 1 + entry.layer
+            : entry.layer,
     };
   });
   const covered = new Set(
@@ -252,7 +289,7 @@ export function SpatialPluginGrid({
   }));
   const movement = useMovement({
     workspace,
-    enabled: dragAndDrop,
+    enabled: dragAndDrop && !overlay?.length,
     items: movable,
     grid,
     onMove: (next) => {
@@ -274,6 +311,13 @@ export function SpatialPluginGrid({
       ? dragged.plugin.rectanglesAt(selectedTarget)?.[dragged.entry.state]
       : undefined;
   useLayoutEffect(() => {
+    const isOpen = Boolean(overlay?.length);
+    const opening = isOpen && !overlayWasOpen.current;
+    if (opening)
+      opener.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
     const panels = Array.from(
       root.current?.querySelectorAll<HTMLElement>("[data-spg-panel]") ?? [],
     );
@@ -292,12 +336,31 @@ export function SpatialPluginGrid({
       }
       panel.inert = hidden;
     }
+    if (opening) {
+      root.current
+        ?.querySelector<HTMLElement>(
+          '.spg-overlay button:not([disabled]),.spg-overlay [tabindex="0"]',
+        )
+        ?.focus();
+    } else if (!isOpen && overlayWasOpen.current) {
+      if (opener.current?.isConnected && !opener.current.closest("[inert]"))
+        opener.current.focus();
+      opener.current = null;
+    }
+    overlayWasOpen.current = isOpen;
   });
   return (
     <div
       ref={root}
       className={`spg-root ${className}`}
       dir={dir}
+      onKeyDownCapture={(event) => {
+        if (overlay?.length && onOverlayDismiss && event.key === "Escape") {
+          event.stopPropagation();
+          event.preventDefault();
+          onOverlayDismiss();
+        }
+      }}
       style={
         {
           ...style,
@@ -326,7 +389,13 @@ export function SpatialPluginGrid({
           return (
             <section
               key={plugin.id}
-              className={`spg-frame ${plugin.appearance === "main-stage" ? "spg-stage" : "spg-plugin"}${dragAndDrop ? " spg-draggable" : ""}`}
+              className={`spg-frame ${
+                plugin.appearance === "overlay"
+                  ? "spg-overlay"
+                  : plugin.appearance === "main-stage"
+                    ? "spg-stage"
+                    : "spg-plugin"
+              }${dragAndDrop && plugin.appearance !== "overlay" ? " spg-draggable" : ""}`}
               data-spg-panel="plugin"
               data-plugin-id={plugin.id}
               data-drag-source={movement.drag?.id === plugin.id || undefined}
@@ -379,11 +448,14 @@ export function SpatialPluginGrid({
                   });
               }}
               onKeyDown={(event) => {
-                if (event.key === "Escape")
+                if (
+                  event.key === "Escape" &&
+                  presentationStates?.[plugin.id] === undefined
+                )
                   change(plugin, { state: plugin.initialState }, true);
               }}
             >
-              {dragAndDrop && (
+              {dragAndDrop && plugin.appearance !== "overlay" && (
                 <div className="spg-move-toolbar">
                   <button
                     {...movement.handle({
@@ -402,10 +474,18 @@ export function SpatialPluginGrid({
                   context={{
                     state: entry.state,
                     pinned: entry.pinned,
-                    transitionTo: (name) => change(plugin, { state: name }),
-                    reset: () =>
-                      change(plugin, { state: plugin.initialState }, true),
-                    setPinned: (pinned) => change(plugin, { pinned }),
+                    transitionTo: (name) => {
+                      if (!presentationStates?.[plugin.id])
+                        change(plugin, { state: name });
+                    },
+                    reset: () => {
+                      if (!presentationStates?.[plugin.id])
+                        change(plugin, { state: plugin.initialState }, true);
+                    },
+                    setPinned: (pinned) => {
+                      if (!presentationStates?.[plugin.id])
+                        change(plugin, { pinned });
+                    },
                   }}
                 />
               </PluginBoundary>

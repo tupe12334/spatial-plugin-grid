@@ -32,6 +32,8 @@ export const stories = [
   "mainstage--host-render-props",
   "mainstage--appending-transcript",
   "mainstage--resizing-transcript",
+  "actionblock--cards",
+  "layouttakeover--systems-picker",
 ];
 export const states = [
   ...["compact", "expanded"].map((size) => ({

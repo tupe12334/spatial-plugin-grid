@@ -252,7 +252,7 @@ export interface Placement<
   readonly draggable?: boolean;
   readonly allowedAnchors?: readonly Anchor[];
   readonly initialState: N;
-  readonly appearance?: "panel" | "main-stage";
+  readonly appearance?: "panel" | "main-stage" | "overlay";
   readonly region?: Rectangle | undefined;
   readonly animate?: boolean;
   readonly onStateChange?: (state: N) => void;
@@ -263,7 +263,7 @@ export interface PluginInstance {
   readonly id: string;
   readonly title: string;
   readonly initialState: string;
-  readonly appearance: "panel" | "main-stage";
+  readonly appearance: "panel" | "main-stage" | "overlay";
   readonly animate: boolean;
   readonly anchor: Coordinate;
   readonly alignment: Alignment;

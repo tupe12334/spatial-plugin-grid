@@ -44,6 +44,14 @@ export type {
   StageRenderContext,
   TranscriptEntry,
 } from "./MainStage";
+export { useLayoutTakeover } from "./layout/useLayoutTakeover";
+export type {
+  LayoutTakeoverContext,
+  LayoutTakeoverRegion,
+  LayoutTakeoverOptions,
+} from "./layout/useLayoutTakeover";
+export { ActionBlock } from "./components/ActionBlock";
+export type { ActionBlockProps } from "./components/ActionBlock";
 export {
   agentWorkspace,
   geometry,

@@ -9,6 +9,10 @@ import { defaultGrid, definePlugin, defineWorkspace } from "../grid/contract";
 import type { Alignment, Footprint } from "../grid/types";
 import { createAgentPlugin } from "../plugins/agent/createAgentPlugin";
 import {
+  useLayoutTakeover,
+  type LayoutTakeoverOptions,
+} from "../layout/useLayoutTakeover";
+import {
   agentWorkspace,
   validateRegistry,
   type LayoutPreset,
@@ -35,6 +39,8 @@ export interface AgentWorkspaceProps
     "expanded" | "onExpandedChange" | "locked" | "onLockedChange"
   >;
   preset?: LayoutPreset;
+  /** Covers host-defined regions while retaining the compact stage and committed base state. */
+  takeover?: LayoutTakeoverOptions;
   onPluginSizeChange?: (id: string, size: PluginSize) => void;
   onStageLockedChange?: (locked: boolean) => void;
   onStageExpandedChange?: (expanded: boolean) => void;
@@ -50,6 +56,7 @@ export function AgentWorkspace({
   plugins,
   mainStage,
   preset = agentWorkspace,
+  takeover,
   onPluginSizeChange,
   onStageLockedChange,
   onStageExpandedChange,
@@ -132,10 +139,16 @@ export function AgentWorkspace({
       onPinnedChange: (pinned) => onStageLockedChange?.(pinned),
     },
   );
+  const overlay = useLayoutTakeover(
+    takeover ?? { open: false, onOpenChange: () => {}, regions: [] },
+  );
   return (
     <SpatialPluginGrid
       {...props}
       workspace={workspace}
+      overlay={overlay}
+      presentationStates={takeover?.open ? { agent: "collapsed" } : {}}
+      onOverlayDismiss={() => takeover?.onOpenChange(false)}
       gap={preset.gap}
       padding={preset.padding}
       navbarHeight={preset.navbarHeight}

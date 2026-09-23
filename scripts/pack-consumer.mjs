@@ -37,7 +37,9 @@ try {
     writeFileSync(
       join(temporary, "generic.tsx"),
       `
-import {SpatialPluginGrid, defaultGrid, definePlugin, defineWorkspace, createAgentPlugin} from 'spatial-plugin-grid';
+import {SpatialPluginGrid, defaultGrid, definePlugin, defineWorkspace, createAgentPlugin, useLayoutTakeover, ActionBlock, type LayoutTakeoverRegion} from 'spatial-plugin-grid';
+const regions: readonly LayoutTakeoverRegion[] = [{id:'choice',title:'Choice',rect:{row:1,column:1,rows:1,columns:1},render:({close})=><ActionBlock label="Choose" onActivate={close}/>}];
+export function TakeoverConsumer(){const overlay=useLayoutTakeover({open:true,onOpenChange:()=>{},regions}); return <SpatialPluginGrid overlay={overlay} presentationStates={{}} onOverlayDismiss={()=>{}}/>;}
 const status=definePlugin({id:'status',title:'Status',layout:{anchor:'top-left',states:{ready:{rows:1,columns:1}},transitions:{ready:[]}},render:({state})=><p>{state}</p>});
 const agent=createAgentPlugin({id:'assistant'});
 const workspace=defineWorkspace(defaultGrid).place(status,{anchor:{row:1,column:4},initialState:'ready'}).place(agent,{anchor:{row:3,column:3},initialState:'collapsed',appearance:'main-stage'});
