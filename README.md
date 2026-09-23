@@ -5,27 +5,43 @@ A React 18/19 plugin-agnostic viewport layout library. Every plugin declares nam
 ## Generic API (0.2 migration)
 
 ```tsx
-import { SpatialPluginGrid, defaultGrid, definePlugin, defineWorkspace } from "spatial-plugin-grid";
+import {
+  SpatialPluginGrid,
+  defaultGrid,
+  definePlugin,
+  defineWorkspace,
+} from "spatial-plugin-grid";
 import "spatial-plugin-grid/styles.css";
 
 const chart = definePlugin({
-  id: "chart", title: "Chart",
+  id: "chart",
+  title: "Chart",
   layout: {
     anchor: "top-left",
-    states: { summary: { rows: 1, columns: 1 }, detail: { rows: 2, columns: 3 } },
+    states: {
+      summary: { rows: 1, columns: 1 },
+      detail: { rows: 2, columns: 3 },
+    },
     transitions: { summary: ["detail"], detail: ["summary"] },
   },
   render: ({ state, transitionTo, reset }) => (
     <div className="spg-plugin-body">
       <p>Chart: {state}</p>
-      <button onClick={() => state === "summary" ? transitionTo("detail") : reset()}>Toggle chart</button>
+      <button
+        onClick={() => (state === "summary" ? transitionTo("detail") : reset())}
+      >
+        Toggle chart
+      </button>
     </div>
   ),
 });
 const workspace = defineWorkspace(defaultGrid).place(chart, {
-  anchor: { row: 1, column: 1 }, initialState: "summary",
+  anchor: { row: 1, column: 1 },
+  initialState: "summary",
 });
-export const app = <SpatialPluginGrid workspace={workspace} className="my-theme" />;
+export const app = (
+  <SpatialPluginGrid workspace={workspace} className="my-theme" />
+);
 export const empty = <SpatialPluginGrid className="my-theme" />;
 ```
 
@@ -68,11 +84,18 @@ import "spatial-plugin-grid/styles.css";
 
 export function Dashboard() {
   return (
-    <section style={{ height: "calc(100dvh - 64px)", minHeight: 0, minWidth: 0 }}>
+    <section
+      style={{ height: "calc(100dvh - 64px)", minHeight: 0, minWidth: 0 }}
+    >
       <SpatialPluginGrid
         label="Dashboard workspace"
         navbarHeight={0}
-        style={{ position: "relative", inset: "auto", height: "100%", width: "100%" }}
+        style={{
+          position: "relative",
+          inset: "auto",
+          height: "100%",
+          width: "100%",
+        }}
       />
     </section>
   );
@@ -99,12 +122,19 @@ Placement options can narrow movement further:
 
 ```tsx
 const workspace = defineWorkspace(defaultGrid).place(chart, {
-  anchor: { row: 1, column: 1 }, initialState: "summary",
+  anchor: { row: 1, column: 1 },
+  initialState: "summary",
   draggable: true, // false excludes this block from moves and swaps
-  allowedAnchors: [{ row: 1, column: 1 }, { row: 2, column: 1 }],
+  allowedAnchors: [
+    { row: 1, column: 1 },
+    { row: 2, column: 1 },
+  ],
 });
-<SpatialPluginGrid workspace={workspace} dragAndDrop
-  onPluginsMoved={(placements) => console.log(placements)} />;
+<SpatialPluginGrid
+  workspace={workspace}
+  dragAndDrop
+  onPluginsMoved={(placements) => console.log(placements)}
+/>;
 ```
 
 `allowedAnchors` is optional (all geometrically compatible anchors by default), typed against all states, and runtime-validated at registration. An empty list prevents moves. Moves to empty space and atomic swaps are supported; both directions must be permitted and neither the initial nor current footprint may collide with another block. Expansion capacity may still overlap as before. Pinned, covered, or animating blocks cannot move or be swapped, and animation covers protect otherwise-empty cells beneath them. Invalid drops and cancellation never invoke the callback.
@@ -172,16 +202,16 @@ export function Workspace() {
 
 ## Grouped preset API
 
-| Export                                                                  | Contract                                                                                                                                                                                    |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Export                                                                  | Contract                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `AgentWorkspace`                                                        | `plugins`, optional `mainStage`, `navbar`, `preset`, `className`, `style`, `dir`; optional `onPluginSizeChange(id,size)`, `onStageExpandedChange(expanded)`, `onStageLockedChange(locked)`, `onPluginError(id,error,info)` |
-| `GroupedPluginDefinition`                                               | Immutable `id`, `title`, `home`, `allowedSizes`, and `render(context)`                                                                                                                      |
-| `GroupedPluginContext`                                                  | `size`, `expanded`, `setSize(size)`, `shrink()`; invalid requested sizes throw                                                                                                              |
-| `MainStage`                                                             | Required `expanded` and `onExpandedChange`; optional `locked`, `onLockedChange`, `title`, `transcript`, `composer`                                                                                                      |
-| `TranscriptEntry`                                                       | `id`, `author`, `content: ReactNode`                                                                                                                                                        |
-| `StageRenderContext`                                                    | `expanded`, `setExpanded(boolean)`, `locked`, `setLocked(boolean)`; accepted by transcript and composer render props                                                                                                        |
-| `agentWorkspace` / `LayoutPreset`                                       | Default name, navbar height 64, gap 12, padding 12; pass finite nonnegative dimensions to customize spacing                                                                                 |
-| `pluginHomes`, `sizesFor`, `geometry`, `intersects`, `validateRegistry` | Pure reusable layout and registry functions; geometry uses one-based physical columns and rows                                                                                              |
+| `GroupedPluginDefinition`                                               | Immutable `id`, `title`, `home`, `allowedSizes`, and `render(context)`                                                                                                                                                     |
+| `GroupedPluginContext`                                                  | `size`, `expanded`, `setSize(size)`, `shrink()`; invalid requested sizes throw                                                                                                                                             |
+| `MainStage`                                                             | Required `expanded` and `onExpandedChange`; optional `locked`, `onLockedChange`, `title`, `transcript`, `composer`                                                                                                         |
+| `TranscriptEntry`                                                       | `id`, `author`, `content: ReactNode`                                                                                                                                                                                       |
+| `StageRenderContext`                                                    | `expanded`, `setExpanded(boolean)`, `locked`, `setLocked(boolean)`; accepted by transcript and composer render props                                                                                                       |
+| `agentWorkspace` / `LayoutPreset`                                       | Default name, navbar height 64, gap 12, padding 12; pass finite nonnegative dimensions to customize spacing                                                                                                                |
+| `pluginHomes`, `sizesFor`, `geometry`, `intersects`, `validateRegistry` | Pure reusable layout and registry functions; geometry uses one-based physical columns and rows                                                                                                                             |
 
 The grid owns expansion state; callbacks notify the host. `MainStage` can also be used independently as a controlled component in a host-sized `.spg-root` wrapper. Its parent controls expansion geometry; the grid provides the 480ms height animation. Grouped preset registry validation runs on every render, rejects duplicate IDs/homes, reserved or invalid homes, duplicate/disallowed sizes, and requires `1x1`. Partial registries are allowed and leave empty cells. Plugin errors are isolated behind per-ID boundaries, showing a fallback; change the plugin ID to reset a failed instance. Keep IDs stable for the life of each plugin.
 
@@ -239,6 +269,14 @@ Standalone `MainStage` keeps lock state locally by default. To control it, pass 
 
 This viewport component should occupy an application route without other page-flow content. The library itself causes no page overflow; host content outside it remains host-controlled. Four columns remain four columns on narrow screens; plugin bodies scroll internally and hosts should provide compact content. At extremely short viewport heights or oversized spacing settings, usable content area is necessarily limited. Presets customize spacing and naming, not the required three-by-four topology. No drag/drop, virtualization, persistence, server fetching, or publishing is included. Browser support targets modern browsers with `inert`, `ResizeObserver`, CSS `color-mix`, and dynamic viewport units.
 
+## Temporary layouts and action blocks
+
+`AgentWorkspace` accepts `takeover: { open, onOpenChange, regions }`. Each region has a stable `id`, accessible `title`, one-based `rect: { row, column, rows, columns }`, and `render({ close })`. Regions must be disjoint and within grid bounds. Use regions at rows 1–2 and cells 31/34 to retain the stage at 32–33. The preset presents the same stage compactly while preserving its underlying expanded/pinned state; closing restores it without remounting its composer.
+
+For arbitrary grids, `useLayoutTakeover(options)` returns overlay registrations for the separate `SpatialPluginGrid.overlay` prop. Keep the original `workspace` identity stable to preserve moved placements. Optional `presentationStates` maps retained plugin IDs to render-only named states, without changing their committed state or pin. `onOverlayDismiss` handles Escape across retained content and overlays. Covered base panels are inert; overlays and retained panels remain keyboard-accessible. Opening captures focus and closing restores the surviving opener.
+
+`ActionBlock` renders a whole-card native button with `label`, optional `description`, `icon`, `selected`, `disabled`, and `onActivate`. Omit `selected` for navigation/actions that are not toggles. Hosts own loading/error content, pagination, authorized data and persistence; these primitives never synthesize chat messages or contain product-specific selection logic.
+
 ## Development and validation
 
 Node 24 and pnpm 9.15.9. Storybook core and React/Vite adapters are aligned at 10.5.4; React 18.3, TypeScript 5.7, Vite 6.
@@ -272,15 +310,16 @@ OIDC cannot bootstrap this nonexistent package: its npm settings must exist befo
 2. Inspect `npm publish --dry-run --access public --registry https://registry.npmjs.org/ --tag latest`. Authenticate locally with `npm login --registry https://registry.npmjs.org/`, then run `npm publish --access public --registry https://registry.npmjs.org/ --tag latest`, completing npm's authentication/2FA prompts. This local bootstrap does not request GitHub provenance. If bootstrapping a prerelease version instead, use `next` for both commands.
 3. In npm's settings for `spatial-plugin-grid`, add a **GitHub Actions** trusted publisher with these exact fields:
 
-   | Field | Value |
-   | --- | --- |
-   | Organization or user | `tupe12334` |
-   | Repository | `spatial-plugin-grid` |
-   | Workflow filename | `publish.yml` (no directory prefix) |
-   | Environment name | Leave empty (the workflow uses no environment) |
-   | Allowed actions, if shown | Allow direct `npm publish` |
+   | Field                     | Value                                          |
+   | ------------------------- | ---------------------------------------------- |
+   | Organization or user      | `tupe12334`                                    |
+   | Repository                | `spatial-plugin-grid`                          |
+   | Workflow filename         | `publish.yml` (no directory prefix)            |
+   | Environment name          | Leave empty (the workflow uses no environment) |
+   | Allowed actions, if shown | Allow direct `npm publish`                     |
 
    The package's `repository.url` must continue to match this GitHub repository. No npm token or GitHub secret is used by the workflow.
+
 4. The initial version is now consumed: do not publish a GitHub release for that same version expecting CI to republish it. Use a new version for the first automated release.
 
 ### Validate without publishing
@@ -327,6 +366,7 @@ Versioning and changelogs are owned exclusively by [Changesets](https://github.c
    ```
 
    release-it natively requires `main`, an upstream, and clean tracked files. The `before:init` hook (`scripts/release-preflight.mjs`) adds only repository policy: credentials, no untracked files or unconsumed changesets, exact `origin/main` equality, nonempty notes for the exact version, and no existing local/remote version tag. release-it then tags `v<package.version>` (annotated), pushes the tag, and creates a GitHub release named for that version with notes from the Changesets section (`release-preflight.mjs --notes` — no separate generator). It performs no version bump, no commit, and no `npm publish`.
+
 4. **Prerelease.** The same flow supports prerelease versions (e.g. `0.2.0-rc.1`): give the version PR a prerelease version via `pnpm changeset pre enter rc && pnpm run version` (`pnpm changeset pre exit` to leave prerelease mode later), then release normally. release-it detects the prerelease identifier in the version string and marks the GitHub release as a prerelease automatically, matching what `release-guard.mjs` requires for the tag/version/prerelease-flag triple.
 5. Publishing itself is unchanged: the GitHub release (`published`) event triggers `publish.yml`, which re-validates tag/version/main-ancestry and CI, then publishes with OIDC provenance — stable versions to `latest`, prereleases to `next`. See the section above for that workflow's guarantees.
 6. Versions cannot be overwritten; if a publication succeeded, use a new version for subsequent changes. Publish stable versions in ascending order: publishing an older stable version would move `latest` backward.

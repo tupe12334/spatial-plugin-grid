@@ -42,7 +42,7 @@ const placementSchema = z.object({
   draggable: z.boolean().optional(),
   allowedAnchors: z.array(coordinate).optional(),
   initialState: z.string(),
-  appearance: z.enum(["panel", "main-stage"]).optional(),
+  appearance: z.enum(["panel", "main-stage", "overlay"]).optional(),
   animate: z.boolean().optional(),
   region: rectangle.optional(),
 });
