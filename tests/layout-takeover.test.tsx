@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   SpatialPluginGrid,
   defaultGrid,
@@ -184,6 +184,122 @@ it("retains a moved base placement across takeover open and dismissal", () => {
   fireEvent.click(screen.getByRole("button", { name: "Done" }));
   expect(screen.getByRole("region", { name: "Status" })).toBe(panel);
   expect(panel.dataset.home).toBe(movedHome);
+});
+
+it("defaults to focusing the first overlay action on open", () => {
+  render(<Harness />);
+  fireEvent.click(screen.getByTestId("trigger"));
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Close picker" }),
+  );
+});
+
+function PreserveHarness({ open }: { open: boolean }) {
+  const [isOpen, setIsOpen] = useState(open);
+  useEffect(() => setIsOpen(open), [open]);
+  const workspace = defineWorkspace(defaultGrid)
+    .place(status, { anchor: { row: 2, column: 2 }, initialState: "ready" })
+    .place(retained, { anchor: { row: 3, column: 1 }, initialState: "ready" });
+  const overlay = useLayoutTakeover({
+    open: isOpen,
+    onOpenChange: setIsOpen,
+    focus: "preserve",
+    regions: [
+      {
+        id: "picker-results",
+        title: "Systems",
+        rect: { row: 1, column: 1, rows: 1, columns: 4 },
+        render: ({ close }) => <button onClick={close}>Close picker</button>,
+      },
+    ],
+  });
+  return (
+    <SpatialPluginGrid
+      workspace={workspace}
+      overlay={overlay}
+      overlayFocus="preserve"
+    />
+  );
+}
+
+it("preserve mode leaves focus on retained active content when the takeover opens", () => {
+  const { rerender } = render(<PreserveHarness open={false} />);
+  screen.getByRole("button", { name: "Send" }).focus();
+  rerender(<PreserveHarness open />);
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Send" }),
+  );
+});
+
+it("preserve mode still rescues focus that the takeover newly covers", () => {
+  function CoveredPreserveHarness({ open }: { open: boolean }) {
+    const [isOpen, setIsOpen] = useState(open);
+    useEffect(() => setIsOpen(open), [open]);
+    const workspace = defineWorkspace(defaultGrid).place(status, {
+      anchor: { row: 1, column: 1 },
+      initialState: "ready",
+    });
+    const overlay = useLayoutTakeover({
+      open: isOpen,
+      onOpenChange: setIsOpen,
+      focus: "preserve",
+      regions: [
+        {
+          id: "picker-results",
+          title: "Systems",
+          rect: { row: 1, column: 1, rows: 1, columns: 4 },
+          render: () => <button>Card</button>,
+        },
+      ],
+    });
+    return (
+      <SpatialPluginGrid
+        workspace={workspace}
+        overlay={overlay}
+        overlayFocus="preserve"
+      />
+    );
+  }
+  const { rerender } = render(<CoveredPreserveHarness open={false} />);
+  screen.getByText("Count 0").focus();
+  rerender(<CoveredPreserveHarness open />);
+  expect(screen.getByRole("region", { name: "Status" }).inert).toBe(true);
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Card" }),
+  );
+});
+
+it("preserve mode still restores the opener on close", () => {
+  function ClickToOpenPreserveHarness() {
+    const [open, setOpen] = useState(false);
+    const overlay = useLayoutTakeover({
+      open,
+      onOpenChange: setOpen,
+      focus: "preserve",
+      regions: [
+        {
+          id: "picker-results",
+          title: "Systems",
+          rect: { row: 1, column: 1, rows: 1, columns: 4 },
+          render: ({ close }) => <button onClick={close}>Close picker</button>,
+        },
+      ],
+    });
+    return (
+      <>
+        <button onClick={() => setOpen(true)} data-testid="trigger">
+          Open picker
+        </button>
+        <SpatialPluginGrid overlay={overlay} overlayFocus="preserve" />
+      </>
+    );
+  }
+  render(<ClickToOpenPreserveHarness />);
+  const trigger = screen.getByTestId("trigger");
+  trigger.focus();
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByText("Close picker"));
+  expect(document.activeElement).toBe(trigger);
 });
 
 it("rejects a region id that collides with an existing plugin", () => {
