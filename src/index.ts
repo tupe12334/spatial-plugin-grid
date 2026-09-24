@@ -30,8 +30,8 @@ export type {
   ValidAnchor,
   Workspace,
 } from "./grid/types";
-export { createAgentPlugin } from "./plugins/agent/createAgentPlugin";
-export type { AgentPluginOptions } from "./plugins/agent/createAgentPlugin";
+export { createAgentPlugin } from "./plugins";
+export type { AgentPluginOptions } from "./plugins";
 export { AgentWorkspace } from "./presets/AgentWorkspace";
 export type {
   AgentWorkspaceProps,

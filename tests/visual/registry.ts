@@ -1,3 +1,5 @@
+import { screenshotPath } from "./pluginCoverage";
+
 export const stories = [
   ...["21", "22", "23", "31", "32", "33"].map(
     (anchor) => `agentplugin--at-${anchor}`,
@@ -117,7 +119,7 @@ export function verifyInventory(ids: string[], entries = states) {
     throw new Error("Story inventory differs from built Storybook index");
   const paths = new Map<string, string>();
   for (const entry of entries) {
-    const path = `tests/visual/baselines/${entry.name.toLowerCase()}.png`;
+    const path = `tests/visual/baselines/${screenshotPath({ ...entry, name: entry.name.toLowerCase() })}`;
     const previous = paths.get(path);
     if (previous)
       throw new Error(
@@ -134,7 +136,7 @@ export function verifyInventory(ids: string[], entries = states) {
 }
 
 export function verifyBaselines(files: string[]) {
-  const expected = states.map(({ name }) => `${name}.png`).sort();
+  const expected = states.map((entry) => screenshotPath(entry)).sort();
   const actual = files.filter((name) => name.endsWith(".png")).sort();
   if (JSON.stringify(expected) !== JSON.stringify(actual))
     throw new Error(

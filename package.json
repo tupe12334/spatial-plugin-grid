@@ -19,6 +19,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./plugins": {
+      "types": "./dist/plugins/index.d.ts",
+      "import": "./dist/plugins/index.js"
+    },
+    "./plugins/agent": {
+      "types": "./dist/plugins/agent/index.d.ts",
+      "import": "./dist/plugins/agent/index.js"
+    },
     "./styles.css": "./dist/styles.css"
   },
   "scripts": {
