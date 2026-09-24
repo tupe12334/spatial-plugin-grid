@@ -8,6 +8,7 @@ export default defineConfig({
         index: "src/index.ts",
         "plugins/index": "src/plugins/index.ts",
         "plugins/agent/index": "src/plugins/agent/index.ts",
+        "plugins/list/index": "src/plugins/list/index.ts",
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,
