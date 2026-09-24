@@ -87,20 +87,30 @@ const invalid=()=>defineWorkspace(defaultGrid).place(agent,{anchor:{row:1,column
 import {strict as assert} from 'node:assert';
 import ts from 'typescript';
 const root = await import('spatial-plugin-grid');
-for (const specifier of ['spatial-plugin-grid', 'spatial-plugin-grid/plugins', 'spatial-plugin-grid/plugins/agent']) {
+const entries = [
+  {specifier: 'spatial-plugin-grid', factory: 'createAgentPlugin'},
+  {specifier: 'spatial-plugin-grid/plugins', factory: 'createAgentPlugin'},
+  {specifier: 'spatial-plugin-grid/plugins/agent', factory: 'createAgentPlugin'},
+  {specifier: 'spatial-plugin-grid/plugins', factory: 'createListPlugin'},
+  {specifier: 'spatial-plugin-grid/plugins/list', factory: 'createListPlugin'},
+];
+for (const {specifier, factory} of entries) {
   const entry = import.meta.resolve(specifier);
   const source = ts.createSourceFile(entry, readFileSync(new URL(entry), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
   const first = source.statements[0];
   assert(first && ts.isExpressionStatement(first) && ts.isStringLiteral(first.expression) && first.expression.text === 'use client', specifier + ' must begin with a use client directive');
   const api = await import(specifier);
-  assert.equal(api.createAgentPlugin, root.createAgentPlugin, specifier + ' must share the same factory');
-  if (specifier !== 'spatial-plugin-grid') assert.deepEqual(Object.keys(api), ['createAgentPlugin']);
-  const plugin = api.createAgentPlugin({id: specifier});
-  const workspace = root.defineWorkspace(root.defaultGrid).place(plugin, {anchor:{row:3,column:1},initialState:'collapsed'});
+  assert.equal(api[factory], root[factory], specifier + ' must share the same ' + factory + ' factory');
+  if (specifier !== 'spatial-plugin-grid') {
+    assert(Object.keys(api).includes(factory), specifier + ' must export ' + factory);
+  }
+  const plugin = api[factory]({id: specifier, title: specifier});
+  const workspace = root.defineWorkspace(root.defaultGrid).place(plugin, {anchor:{row:3,column:1},initialState: plugin.layout.states.compact ? 'compact' : 'collapsed'});
   assert(workspace);
-  assert.throws(() => root.defineWorkspace(root.defaultGrid).place(plugin, {anchor:{row:1,column:1},initialState:'collapsed'}));
+  assert.throws(() => root.defineWorkspace(root.defaultGrid).place(plugin, {anchor:{row:1,column:4},initialState: plugin.layout.states.compact ? 'expanded' : 'collapsed'}));
 }
 await assert.rejects(import('spatial-plugin-grid/plugins/agent/createAgentPlugin'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+await assert.rejects(import('spatial-plugin-grid/plugins/list/createListPlugin'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
 assert.equal(typeof root.SpatialPluginGrid, 'function');
 assert.equal(root.geometry('31','1x2').row, 2);
 console.log('All public entries: client boundaries, ESM exports, factory identity and placement validation passed');`,

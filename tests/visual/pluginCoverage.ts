@@ -11,6 +11,10 @@ export const pluginScreenshots: readonly PluginScreenshots[] = [
       (anchor) => `agentplugin--at-${anchor}`,
     ),
   },
+  {
+    plugin: "list",
+    stories: ["listplugin--default"],
+  },
 ];
 
 export function screenshotPath(

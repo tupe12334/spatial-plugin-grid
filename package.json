@@ -27,6 +27,10 @@
       "types": "./dist/plugins/agent/index.d.ts",
       "import": "./dist/plugins/agent/index.js"
     },
+    "./plugins/list": {
+      "types": "./dist/plugins/list/index.d.ts",
+      "import": "./dist/plugins/list/index.js"
+    },
     "./styles.css": "./dist/styles.css"
   },
   "scripts": {
