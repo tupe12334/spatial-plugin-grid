@@ -12,6 +12,7 @@ import {
   verifyInventory,
   verifyBaselines,
 } from "./visual/registry";
+import { screenshotPath } from "./visual/pluginCoverage";
 const roots: string[] = [];
 afterEach(async () => {
   roots
@@ -66,6 +67,24 @@ for (const kind of [
     expect(guard).toThrow(/Baseline guard/);
     // These fixtures spawn Git and Node; use the same budget as real push fixtures.
   }, 30_000);
+for (const kind of ["unstaged", "staged", "untracked"]) {
+  test(`guard rejects nested plugin ${kind} PNG`, () => {
+    const { root, git, guard } = repo();
+    const directory = join(root, "tests/visual/baselines/plugins/example");
+    mkdirSync(directory, { recursive: true });
+    const path = join(directory, "ready.png");
+    writeFileSync(path, "original");
+    git("add", ".");
+    git("commit", "-m", "plugin screenshot fixture");
+    writeFileSync(
+      kind === "untracked" ? join(directory, "new.png") : path,
+      "changed",
+    );
+    if (kind === "staged") git("add", "-A");
+    expect(guard).toThrow(/Baseline guard/);
+  }, 30_000);
+}
+
 test("guard allows unrelated dirty docs and committed baselines", () => {
   const { root, git, guard } = repo();
   writeFileSync(join(root, "README.md"), "staged docs");
@@ -220,7 +239,7 @@ test("push input checks every ref and permits deletions and HEAD aliases", () =>
 });
 
 test("baseline inventory rejects missing and extra paths", () => {
-  const names = states.map(({ name }) => `${name}.png`);
+  const names = states.map((entry) => screenshotPath(entry));
   expect(() => verifyBaselines(names)).not.toThrow();
   expect(() => verifyBaselines(names.slice(1))).toThrow(`Missing: ${names[0]}`);
   expect(() => verifyBaselines([...names, "obsolete.png"])).toThrow(

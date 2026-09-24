@@ -2,6 +2,7 @@ import { setSize } from "../directionalHelpers";
 import { expect, test } from "@playwright/test";
 import { readFileSync, readdirSync } from "node:fs";
 import { states, verifyInventory, verifyBaselines } from "./registry";
+import { screenshotPath, verifyPluginCoverage } from "./pluginCoverage";
 import {
   geometry,
   pluginHomes,
@@ -9,13 +10,24 @@ import {
   type PluginSize,
 } from "../../src/presets/groupedLayout";
 const index = JSON.parse(readFileSync("storybook-static/index.json", "utf8"));
-verifyInventory(
-  Object.values(index.entries)
-    .filter((entry) => (entry as { type: string }).type === "story")
-    .map((entry) => (entry as { id: string }).id),
+const storyIds = Object.values(index.entries)
+  .filter((entry) => (entry as { type: string }).type === "story")
+  .map((entry) => (entry as { id: string }).id);
+verifyInventory(storyIds);
+verifyPluginCoverage(
+  readdirSync("src/plugins", { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name),
+  storyIds,
+  states,
 );
 if (process.env.SPG_UPDATE_BASELINES !== "1")
-  verifyBaselines(readdirSync("tests/visual/baselines"));
+  verifyBaselines(
+    readdirSync("tests/visual/baselines", {
+      recursive: true,
+      encoding: "utf8",
+    }),
+  );
 for (const state of states)
   test(state.name, async ({ page }) => {
     if (["workspace--narrow", "workspace--rtl"].includes(state.story))
@@ -199,5 +211,5 @@ for (const state of states)
       }
       throw new Error("Transcript layout/scroll did not settle");
     });
-    await expect(page).toHaveScreenshot(`${state.name}.png`);
+    await expect(page).toHaveScreenshot(screenshotPath(state).split("/"));
   });
