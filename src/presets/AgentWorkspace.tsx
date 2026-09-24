@@ -147,6 +147,7 @@ export function AgentWorkspace({
       {...props}
       workspace={workspace}
       overlay={overlay}
+      {...(takeover?.focus ? { overlayFocus: takeover.focus } : {})}
       presentationStates={takeover?.open ? { agent: "collapsed" } : {}}
       onOverlayDismiss={() => takeover?.onOpenChange(false)}
       gap={preset.gap}

@@ -14,8 +14,14 @@ const systems = [
   "CRM",
   "Finance",
 ];
-function SystemsPickerDemo() {
-  const [open, setOpen] = useState(true);
+function SystemsPickerDemo({
+  initialOpen = true,
+  focus,
+}: {
+  initialOpen?: boolean;
+  focus?: "first-action" | "preserve";
+}) {
+  const [open, setOpen] = useState(initialOpen);
   const [selected, setSelected] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const regions: LayoutTakeoverRegion[] = systems.map((label, index) => ({
@@ -81,7 +87,12 @@ function SystemsPickerDemo() {
           />
         ),
       }}
-      takeover={{ open, onOpenChange: setOpen, regions }}
+      takeover={{
+        open,
+        onOpenChange: setOpen,
+        regions,
+        ...(focus ? { focus } : {}),
+      }}
       navbar={
         <button onClick={() => setOpen((value) => !value)}>
           {open ? "Close picker" : "Open picker"}
@@ -97,3 +108,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const SystemsPicker: Story = {};
+export const SystemsPickerPreserveFocus: Story = {
+  args: { initialOpen: false, focus: "preserve" },
+};

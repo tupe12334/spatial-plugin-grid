@@ -31,6 +31,12 @@ export interface SpatialPluginGridProps {
   /** Temporary render-only states. Underlying state, pin and placement stay committed. */
   presentationStates?: Readonly<Record<string, string>>;
   onOverlayDismiss?: () => void;
+  /**
+   * `"first-action"` (default) focuses the first `.spg-overlay` action when
+   * `overlay` opens. `"preserve"` leaves focus on whatever retained content
+   * already has it, still rescuing focus that becomes newly covered/inert.
+   */
+  overlayFocus?: "first-action" | "preserve";
   dragAndDrop?: boolean;
   onPluginsMoved?: (placements: Readonly<Record<string, Coordinate>>) => void;
   navbar?: ReactNode;
@@ -116,6 +122,7 @@ export function SpatialPluginGrid({
   overlay,
   presentationStates,
   onOverlayDismiss,
+  overlayFocus = "first-action",
   dragAndDrop = false,
   onPluginsMoved,
   navbar,
@@ -336,7 +343,7 @@ export function SpatialPluginGrid({
       }
       panel.inert = hidden;
     }
-    if (opening) {
+    if (opening && overlayFocus !== "preserve") {
       root.current
         ?.querySelector<HTMLElement>(
           '.spg-overlay button:not([disabled]),.spg-overlay [tabindex="0"]',
