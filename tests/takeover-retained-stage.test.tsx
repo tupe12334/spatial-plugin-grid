@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActionBlock, AgentWorkspace } from "../src";
 
 beforeEach(() => {
@@ -69,6 +69,39 @@ it("compacts a pinned expanded stage only for presentation and restores the iden
   expect(screen.getByRole("textbox", { name: "Draft" })).toBe(draft);
   expect(draft.getAttribute("aria-label")).toBe("Draft");
   expect(document.activeElement).toBe(trigger);
+});
+
+function PreserveHarness({ open }: { open: boolean }) {
+  const [isOpen, setIsOpen] = useState(open);
+  useEffect(() => setIsOpen(open), [open]);
+  return (
+    <AgentWorkspace
+      plugins={[]}
+      mainStage={{ composer: <textarea aria-label="Draft" /> }}
+      takeover={{
+        open: isOpen,
+        onOpenChange: setIsOpen,
+        focus: "preserve",
+        regions: [
+          {
+            id: "results",
+            title: "Results",
+            rect: { row: 1, column: 1, rows: 2, columns: 4 },
+            render: ({ close }) => <button onClick={close}>Return</button>,
+          },
+        ],
+      }}
+    />
+  );
+}
+
+it("forwards takeover.focus=preserve to the grid and keeps composer focus on open", () => {
+  const { rerender } = render(<PreserveHarness open={false} />);
+  const draft = screen.getByRole("textbox", { name: "Draft" });
+  draft.focus();
+  rerender(<PreserveHarness open />);
+  expect(document.activeElement).toBe(draft);
+  expect(screen.getByRole("button", { name: "Return" })).toBeTruthy();
 });
 
 it("plain navigation actions do not announce toggle state", () => {

@@ -1,5 +1,11 @@
 # spatial-plugin-grid
 
+## 0.2.1
+
+### Patch Changes
+
+- Add an opt-in preserve focus policy for nonmodal layout takeovers. `SpatialPluginGrid` now accepts `overlayFocus`, and `useLayoutTakeover` accepts `focus`; the default still focuses the first overlay action while `"preserve"` keeps focus in retained content unless it becomes covered.
+
 ## 0.2.0
 
 ### Minor Changes

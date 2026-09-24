@@ -19,6 +19,12 @@ export interface LayoutTakeoverOptions {
   readonly onOpenChange: (open: boolean) => void;
   /** One or more disjoint regions, e.g. a results block plus separate prev/next cells, leaving a retained plugin's cells out entirely. */
   readonly regions: readonly LayoutTakeoverRegion[];
+  /**
+   * `"first-action"` (default) focuses the first overlay action on open.
+   * `"preserve"` leaves focus on whatever retained content already has it,
+   * only rescuing focus that the takeover newly covers.
+   */
+  readonly focus?: "first-action" | "preserve";
 }
 
 function TakeoverRegionSurface({
