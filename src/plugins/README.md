@@ -118,5 +118,5 @@ pnpm build-storybook
 pnpm test:visual
 ```
 
-See the [library README](../../README.md) for the full API and
+See the [grid README](../grid/README.md) for the registration API and
 [validation guide](../../docs/validation.md) for screenshot and pre-push policy.

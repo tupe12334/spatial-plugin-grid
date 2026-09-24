@@ -37,11 +37,20 @@ try {
     writeFileSync(
       join(temporary, "generic.tsx"),
       `
-import {SpatialPluginGrid, defaultGrid, definePlugin, defineWorkspace, createAgentPlugin, useLayoutTakeover, ActionBlock, type LayoutTakeoverRegion} from 'spatial-plugin-grid';
+import {SpatialPluginGrid, defaultGrid, definePlugin, defineWorkspace, useLayoutTakeover, ActionBlock, type LayoutTakeoverRegion} from 'spatial-plugin-grid';
+import {createAgentPlugin, type AgentPluginOptions} from 'spatial-plugin-grid/plugins/agent';
+import {createAgentPlugin as createCatalogAgent, type AgentPluginOptions as CatalogAgentOptions} from 'spatial-plugin-grid/plugins';
+const options: AgentPluginOptions = {id:'assistant'};
+const catalogOptions: CatalogAgentOptions = {id:'catalog-assistant'};
+const catalogAgent = createCatalogAgent(catalogOptions);
+const catalogWorkspace = defineWorkspace(defaultGrid).place(catalogAgent,{anchor:{row:3,column:1},initialState:'collapsed'});
+export const catalog = <SpatialPluginGrid workspace={catalogWorkspace}/>;
+// @ts-expect-error plugin states remain a literal union through the catalog
+const invalidCatalog = ()=>defineWorkspace(defaultGrid).place(catalogAgent,{anchor:{row:3,column:1},initialState:'unknown'});
 const regions: readonly LayoutTakeoverRegion[] = [{id:'choice',title:'Choice',rect:{row:1,column:1,rows:1,columns:1},render:({close})=><ActionBlock label="Choose" onActivate={close}/>}];
 export function TakeoverConsumer(){const overlay=useLayoutTakeover({open:true,onOpenChange:()=>{},regions}); return <SpatialPluginGrid overlay={overlay} presentationStates={{}} onOverlayDismiss={()=>{}}/>;}
 const status=definePlugin({id:'status',title:'Status',layout:{anchor:'top-left',states:{ready:{rows:1,columns:1}},transitions:{ready:[]}},render:({state})=><p>{state}</p>});
-const agent=createAgentPlugin({id:'assistant'});
+const agent=createAgentPlugin(options);
 const workspace=defineWorkspace(defaultGrid).place(status,{anchor:{row:1,column:4},initialState:'ready'}).place(agent,{anchor:{row:3,column:3},initialState:'collapsed',appearance:'main-stage'});
 export const generic=<SpatialPluginGrid workspace={workspace}/>;
 export const empty=<SpatialPluginGrid/>;
@@ -74,7 +83,27 @@ const invalid=()=>defineWorkspace(defaultGrid).place(agent,{anchor:{row:1,column
     run("node", [
       "--input-type=module",
       "-e",
-      "import {readFileSync} from 'node:fs'; import {strict as assert} from 'node:assert'; import ts from 'typescript'; const entry=import.meta.resolve('spatial-plugin-grid'); const source=ts.createSourceFile(entry,readFileSync(new URL(entry),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.JS); const first=source.statements[0]; assert(first && ts.isExpressionStatement(first) && ts.isStringLiteral(first.expression) && first.expression.text === 'use client', 'Packed entry must begin with a use client directive'); const {SpatialPluginGrid,geometry}=await import('spatial-plugin-grid'); assert.equal(typeof SpatialPluginGrid,'function'); assert.equal(geometry('31','1x2').row,2); console.log('Client boundary and ESM import passed');",
+      `import {readFileSync} from 'node:fs';
+import {strict as assert} from 'node:assert';
+import ts from 'typescript';
+const root = await import('spatial-plugin-grid');
+for (const specifier of ['spatial-plugin-grid', 'spatial-plugin-grid/plugins', 'spatial-plugin-grid/plugins/agent']) {
+  const entry = import.meta.resolve(specifier);
+  const source = ts.createSourceFile(entry, readFileSync(new URL(entry), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const first = source.statements[0];
+  assert(first && ts.isExpressionStatement(first) && ts.isStringLiteral(first.expression) && first.expression.text === 'use client', specifier + ' must begin with a use client directive');
+  const api = await import(specifier);
+  assert.equal(api.createAgentPlugin, root.createAgentPlugin, specifier + ' must share the same factory');
+  if (specifier !== 'spatial-plugin-grid') assert.deepEqual(Object.keys(api), ['createAgentPlugin']);
+  const plugin = api.createAgentPlugin({id: specifier});
+  const workspace = root.defineWorkspace(root.defaultGrid).place(plugin, {anchor:{row:3,column:1},initialState:'collapsed'});
+  assert(workspace);
+  assert.throws(() => root.defineWorkspace(root.defaultGrid).place(plugin, {anchor:{row:1,column:1},initialState:'collapsed'}));
+}
+await assert.rejects(import('spatial-plugin-grid/plugins/agent/createAgentPlugin'), {code:'ERR_PACKAGE_PATH_NOT_EXPORTED'});
+assert.equal(typeof root.SpatialPluginGrid, 'function');
+assert.equal(root.geometry('31','1x2').row, 2);
+console.log('All public entries: client boundaries, ESM exports, factory identity and placement validation passed');`,
     ]);
     run("pnpm", ["exec", "vite", "build"]);
     console.log(
