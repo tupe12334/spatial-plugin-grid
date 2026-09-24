@@ -34,6 +34,7 @@ export const stories = [
   "mainstage--resizing-transcript",
   "actionblock--cards",
   "layouttakeover--systems-picker",
+  "layouttakeover--systems-picker-preserve-focus",
 ];
 export const states = [
   ...["compact", "expanded"].map((size) => ({
