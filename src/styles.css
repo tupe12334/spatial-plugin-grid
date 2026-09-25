@@ -536,6 +536,10 @@
   color: var(--spg-muted);
 }
 
+/* Each quadrant owns its hover; the frame must not tint as one surface. */
+.spg-plugin:has(.spg-four-action-grid):hover {
+  background: var(--spg-surface);
+}
 .spg-four-action-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
