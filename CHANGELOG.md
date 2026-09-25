@@ -1,5 +1,12 @@
 # spatial-plugin-grid
 
+## 0.3.0
+
+### Minor Changes
+
+- 8be7d04: Add a generic `createFourActionGridPlugin` and `FourActionGrid` export: a titleless single-cell plugin with exactly four equal, border-separated action quadrants. Hosts supply typed action IDs, labels, optional icons and handlers.
+- 463e6b5: Add a generic `createListPlugin` and `ListBlock` export so hosts and agents can mount any data collection as a validated compact/expanded list plugin without bespoke plugin code per data type.
+
 ## 0.2.1
 
 ### Patch Changes
