@@ -34,12 +34,20 @@ export { createAgentPlugin } from "./plugins";
 export type { AgentPluginOptions } from "./plugins";
 export { createListPlugin } from "./plugins";
 export type { ListPluginOptions } from "./plugins";
+export { createFourActionGridPlugin } from "./plugins";
+export type { FourActionGridPluginOptions } from "./plugins";
 export { ListBlock } from "./components/ListBlock";
 export type {
   ListDensity,
   ListItem,
   ListBlockProps,
 } from "./components/ListBlock";
+export { FourActionGrid } from "./components/FourActionGrid";
+export type {
+  FourAction,
+  FourActions,
+  FourActionGridProps,
+} from "./components/FourActionGrid";
 export { AgentWorkspace } from "./presets/AgentWorkspace";
 export type {
   AgentWorkspaceProps,

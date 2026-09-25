@@ -9,6 +9,7 @@ export default defineConfig({
         "plugins/index": "src/plugins/index.ts",
         "plugins/agent/index": "src/plugins/agent/index.ts",
         "plugins/list/index": "src/plugins/list/index.ts",
+        "plugins/four-action-grid/index": "src/plugins/four-action-grid/index.ts",
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,
