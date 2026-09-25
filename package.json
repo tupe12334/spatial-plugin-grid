@@ -31,6 +31,10 @@
       "types": "./dist/plugins/list/index.d.ts",
       "import": "./dist/plugins/list/index.js"
     },
+    "./plugins/four-action-grid": {
+      "types": "./dist/plugins/four-action-grid/index.d.ts",
+      "import": "./dist/plugins/four-action-grid/index.js"
+    },
     "./styles.css": "./dist/styles.css"
   },
   "scripts": {

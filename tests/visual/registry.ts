@@ -38,6 +38,7 @@ export const stories = [
   "layouttakeover--systems-picker",
   "layouttakeover--systems-picker-preserve-focus",
   "listplugin--default",
+  "fouractiongridplugin--default",
 ];
 export const states = [
   ...["compact", "expanded"].map((size) => ({

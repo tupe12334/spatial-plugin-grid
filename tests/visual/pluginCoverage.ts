@@ -15,6 +15,10 @@ export const pluginScreenshots: readonly PluginScreenshots[] = [
     plugin: "list",
     stories: ["listplugin--default"],
   },
+  {
+    plugin: "four-action-grid",
+    stories: ["fouractiongridplugin--default"],
+  },
 ];
 
 export function screenshotPath(
